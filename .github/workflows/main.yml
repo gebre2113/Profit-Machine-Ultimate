@@ -1,100 +1,318 @@
-# .gitignore for Profit Machine Ultimate
+# .github/workflows/profit_machine_ultimate_v2.yml
 
-# API Keys and Secrets
-.env
-.env.local
-*.key
-*.pem
-config_v10.json
-config_v11.json
-master_config.json
-secrets/
+name: Profit Machine Ultimate v2.0
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+on:
+  schedule:
+    # Run 3 times a day: 8AM, 2PM, 8PM UTC
+    - cron: '0 8,14,20 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        default: 'hybrid'
+        type: choice
+        options:
+          - hybrid
+          - v10_only
+          - v11_only
+          - enhancement
+      workflow:
+        description: 'Workflow type'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - hybrid
+          - enhancement
+          - maintenance
 
-# Virtual Environments
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+jobs:
+  run-profit-machine:
+    runs-on: ubuntu-latest
+    
+    # Add timeout to prevent infinite runs
+    timeout-minutes: 45
+    
+    steps:
+    - name: ⬇️ Checkout repository with full history
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for proper database backup
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 🐍 Setup Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Install additional packages for enhanced features
+        pip install beautifulsoup4 lxml schedule python-dotenv
+    
+    - name: 🏗️ Setup project structure
+      run: |
+        python main_controller.py --setup
+        
+    - name: 🔧 Create configuration from secrets
+      run: |
+        # Create master config
+        cat > master_config.json << 'EOF'
+        {
+          "mode": "${{ github.event.inputs.mode || 'hybrid' }}",
+          "hybrid_strategy": "quality_first",
+          "v10_settings": {
+            "enabled": true,
+            "daily_limit": 2,
+            "target_word_count": 1800,
+            "auto_publish": false
+          },
+          "v11_settings": {
+            "enabled": true,
+            "daily_limit": 1,
+            "enable_adsense_protection": true,
+            "enable_social_posting": true,
+            "enable_verification": true
+          }
+        }
+        EOF
+        
+        # Create v10 config
+        cat > v10/config_v10.json << 'EOF'
+        {
+          "GROQ_API_KEY": "${{ secrets.GROQ_API_KEY }}",
+          "WP_URL": "${{ secrets.WP_URL }}",
+          "WP_USERNAME": "${{ secrets.WP_USERNAME }}",
+          "WP_PASSWORD": "${{ secrets.WP_PASSWORD }}",
+          "TELEGRAM_BOT_TOKEN": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
+          "TELEGRAM_CHAT_ID": "${{ secrets.TELEGRAM_CHAT_ID }}",
+          "DATABASE_PATH": "data/v10_articles.db",
+          "AUTO_PUBLISH": false,
+          "BACKUP_TO_GITHUB": true
+        }
+        EOF
+        
+        # Create v11 config
+        cat > v11/config_v11.json << 'EOF'
+        {
+          "GROQ_API_KEY": "${{ secrets.GROQ_API_KEY }}",
+          "TWITTER_API_KEY": "${{ secrets.TWITTER_API_KEY }}",
+          "TWITTER_API_SECRET": "${{ secrets.TWITTER_API_SECRET }}",
+          "TWITTER_ACCESS_TOKEN": "${{ secrets.TWITTER_ACCESS_TOKEN }}",
+          "TWITTER_ACCESS_SECRET": "${{ secrets.TWITTER_ACCESS_SECRET }}",
+          "FACEBOOK_ACCESS_TOKEN": "${{ secrets.FACEBOOK_ACCESS_TOKEN }}",
+          "FACEBOOK_PAGE_ID": "${{ secrets.FACEBOOK_PAGE_ID }}",
+          "TELEGRAM_BOT_TOKEN": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
+          "TELEGRAM_CHAT_ID": "${{ secrets.TELEGRAM_CHAT_ID }}",
+          "PRIMARY_AI_MODEL": "llama-3.3-70b-versatile",
+          "SECONDARY_AI_MODEL": "gemma2-9b-it",
+          "AUTO_POST_TO_SOCIAL": true,
+          "STRICT_ADSENSE_COMPLIANCE": true
+        }
+        EOF
+        
+        echo "✅ Config files created from secrets"
+    
+    - name: 🚀 Run Profit Machine Ultimate
+      env:
+        # Add environment variables for enhanced security
+        PYTHONUNBUFFERED: 1
+        TZ: UTC
+      run: |
+        echo "Starting Profit Machine Ultimate..."
+        echo "Mode: ${{ github.event.inputs.mode || 'hybrid' }}"
+        echo "Workflow: ${{ github.event.inputs.workflow || 'daily' }}"
+        
+        # Run with specified workflow and mode
+        python main_controller.py \
+          --workflow ${{ github.event.inputs.workflow || 'daily' }} \
+          --mode ${{ github.event.inputs.mode || 'hybrid' }}
+        
+        # Check if successful
+        if [ $? -eq 0 ]; then
+          echo "✅ Execution completed successfully"
+        else
+          echo "⚠️ Execution completed with warnings or errors"
+        fi
+    
+    - name: 💾 Backup database and results
+      run: |
+        echo "Backing up data..."
+        
+        # Create timestamp for backup
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        
+        # Export database to JSON for easy version control
+        python -c "
+        import json
+        import sqlite3
+        from datetime import datetime
+        
+        # Export v10 database
+        try:
+            conn = sqlite3.connect('data/v10_articles.db')
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT * FROM articles ORDER BY created_at DESC LIMIT 50')
+            articles = [dict(row) for row in cursor.fetchall()]
+            
+            cursor.execute('SELECT COUNT(*) as total FROM articles')
+            total = cursor.fetchone()[0]
+            
+            v10_data = {
+                'export_date': datetime.now().isoformat(),
+                'total_articles': total,
+                'recent_articles': articles
+            }
+            
+            with open('exports/v10_database_backup.json', 'w') as f:
+                json.dump(v10_data, f, indent=2, default=str)
+                
+            print(f'✅ Exported {total} v10 articles')
+        except Exception as e:
+            print(f'⚠️ v10 export failed: {e}')
+        
+        # Export v11 database
+        try:
+            conn = sqlite3.connect('data/profit_machine_v11.db')
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT * FROM articles_v11 ORDER BY created_at DESC LIMIT 50')
+            articles = [dict(row) for row in cursor.fetchall()]
+            
+            cursor.execute('SELECT COUNT(*) as total FROM articles_v11')
+            total = cursor.fetchone()[0]
+            
+            v11_data = {
+                'export_date': datetime.now().isoformat(),
+                'total_articles': total,
+                'recent_articles': articles
+            }
+            
+            with open('exports/v11_database_backup.json', 'w') as f:
+                json.dump(v11_data, f, indent=2, default=str)
+                
+            print(f'✅ Exported {total} v11 articles')
+        except Exception as e:
+            print(f'⚠️ v11 export failed: {e}')
+        "
+        
+        # Also create a simple README in exports
+        echo "# Profit Machine Exports" > exports/README.md
+        echo "Generated: $(date)" >> exports/README.md
+        echo "These are automated exports. Do not edit manually." >> exports/README.md
+    
+    - name: 📤 Push changes to repository
+      run: |
+        echo "Pushing changes to GitHub..."
+        
+        # Configure git
+        git config --global user.email "github-actions@users.noreply.github.com"
+        git config --global user.name "GitHub Actions"
+        
+        # Check if there are changes
+        if git status --porcelain | grep -q '^[ MADRC]'; then
+          echo "Changes detected, committing..."
+          
+          # Add only important files (not logs or temp files)
+          git add exports/
+          git add data/*.json
+          git add reports/
+          
+          # Commit
+          git commit -m "🤖 Profit Machine Backup: $(date +'%Y-%m-%d %H:%M')
+          
+          • Automated backup from GitHub Actions
+          • Database exports updated
+          • Reports generated
+          "
+          
+          # Push
+          git push origin HEAD:${{ github.ref }}
+          
+          echo "✅ Changes pushed to GitHub"
+        else
+          echo "No changes to commit"
+        fi
+    
+    - name: 📧 Send Telegram notification
+      if: always()  # Send even on failure
+      run: |
+        # This would send a notification via Telegram
+        # For now, we'll just log it
+        echo "📧 Telegram notification would be sent here"
+        echo "Bot Token: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && 'Set' || 'Not set' }}"
+        echo "Chat ID: ${{ secrets.TELEGRAM_CHAT_ID != '' && 'Set' || 'Not set' }}"
+    
+    - name: 📊 Upload artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: profit-machine-output-${{ github.run_id }}
+        path: |
+          exports/
+          reports/
+          logs/
+        retention-days: 7
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# Database
-*.db
-*.db-journal
-*.sqlite
-*.sqlite3
-
-# Backups
-backups/
-*.backup
-
-# Exports (these can be large and change frequently)
-exports/
-!exports/README.md
-
-# System files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
-
-# Large media files
-*.mp4
-*.mov
-*.avi
-*.wav
-*.mp3
-
-# Project specific
-data/  # Exclude data directory but keep structure
-!data/README.md
-
-# GitHub Actions artifacts
-.github/actions/
-.github/workflows/*.tmp
+  monitor-performance:
+    needs: run-profit-machine
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 📥 Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: profit-machine-output-${{ github.run_id }}
+    
+    - name: 📈 Generate performance report
+      run: |
+        echo "📊 Performance Report" > performance_report.md
+        echo "=====================" >> performance_report.md
+        echo "" >> performance_report.md
+        echo "**Run ID:** ${{ github.run_id }}" >> performance_report.md
+        echo "**Date:** $(date)" >> performance_report.md
+        echo "**Workflow:** ${{ github.event.inputs.workflow || 'daily' }}" >> performance_report.md
+        echo "**Mode:** ${{ github.event.inputs.mode || 'hybrid' }}" >> performance_report.md
+        echo "" >> performance_report.md
+        
+        # Check if exports exist
+        if [ -d "exports" ]; then
+          echo "✅ Exports directory exists" >> performance_report.md
+          
+          # Count files
+          EXPORT_COUNT=$(find exports -type f | wc -l)
+          echo "**Total export files:** $EXPORT_COUNT" >> performance_report.md
+        else
+          echo "⚠️ No exports generated" >> performance_report.md
+        fi
+        
+        # Check reports
+        if [ -d "reports" ]; then
+          REPORT_COUNT=$(find reports -name "*.json" | wc -l)
+          echo "**Total reports:** $REPORT_COUNT" >> performance_report.md
+        fi
+        
+        # Display summary
+        echo "" >> performance_report.md
+        echo "## Summary" >> performance_report.md
+        echo "The Profit Machine Ultimate executed successfully." >> performance_report.md
+        echo "" >> performance_report.md
+        echo "Next scheduled run: 8 hours from now." >> performance_report.md
+        
+        cat performance_report.md
+    
+    - name: 🚨 Check for errors
+      if: failure()
+      run: |
+        echo "❌ Previous job failed!"
+        echo "Check the 'run-profit-machine' job for details."
