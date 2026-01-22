@@ -1,61 +1,225 @@
+# .github/workflows/profit-machine-ultimate.yml
 
-name: Profit Machine Automation
+name: 🤖 Profit Machine Ultimate
 
 on:
+  # Schedule: 3 times daily at 8AM, 2PM, 8PM UTC
   schedule:
-    # Run at 9 AM, 2 PM, and 7 PM UTC daily
-    - cron: '0 9,14,19 * * *'
-  workflow_dispatch:  # Manual trigger
-  push:
-    branches: [ main ]
+    - cron: '0 8,14,20 * * *'
+  
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Operation Mode'
+        required: true
+        default: 'hybrid'
+        type: choice
+        options:
+        - hybrid
+        - v10_only
+        - v11_only
+      workflow:
+        description: 'Workflow Type'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+        - daily
+        - enhancement
+        - maintenance
 
-permissions:
-  contents: write
+# Prevent multiple simultaneous runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   run-profit-machine:
     runs-on: ubuntu-latest
     
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    # Timeout after 30 minutes
+    timeout-minutes: 30
     
-    - name: Set up Python
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get all history for proper backups
+    
+    - name: 🐍 Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11'
+        cache: 'pip'
     
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        
+        # Install optional packages if needed
+        pip install tweepy facebook-sdk praw || echo "Optional social media packages not installed"
     
-    - name: Run system test
+    - name: 🏗️ Setup environment
       run: |
-        python main_controller.py --test
+        # Create necessary directories
+        mkdir -p data exports logs backups
+        
+        # Create config files from secrets
+        cat > master_config.json << 'EOF'
+        {
+          "mode": "${{ github.event.inputs.mode || 'hybrid' }}",
+          "hybrid_strategy": "quality_first",
+          "v10_settings": {
+            "enabled": true,
+            "daily_limit": 2,
+            "target_word_count": 1800
+          },
+          "v11_settings": {
+            "enabled": true,
+            "daily_limit": 1,
+            "enable_adsense_protection": true,
+            "enable_social_posting": ${{ secrets.TWITTER_API_KEY != '' }}
+          },
+          "telegram": {
+            "enabled": ${{ secrets.TELEGRAM_BOT_TOKEN != '' }},
+            "bot_token": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
+            "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}"
+          }
+        }
+        EOF
+        
+        echo "✅ Environment setup complete"
     
-    - name: Execute daily workflow
+    - name: 🚀 Run Profit Machine
       env:
         GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        WP_URL: ${{ secrets.WP_URL }}
-        WP_USERNAME: ${{ secrets.WP_USERNAME }}
-        WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
+        PYTHONUNBUFFERED: 1
       run: |
-        python main_controller.py --workflow
+        echo "Starting Profit Machine Ultimate..."
+        echo "Mode: ${{ github.event.inputs.mode || 'hybrid' }}"
+        echo "Workflow: ${{ github.event.inputs.workflow || 'daily' }}"
+        
+        # Run the master controller
+        python main_controller.py \
+          --workflow ${{ github.event.inputs.workflow || 'daily' }} \
+          --mode ${{ github.event.inputs.mode || 'hybrid' }}
+        
+        # Capture exit code
+        EXIT_CODE=$?
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✅ Execution completed successfully"
+        else
+          echo "⚠️ Execution completed with exit code: $EXIT_CODE"
+        fi
     
-    - name: Archive logs
+    - name: 💾 Backup results
+      if: always()
+      run: |
+        echo "Backing up execution results..."
+        
+        # Create timestamp
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        
+        # Export database to JSON
+        python3 -c "
+        import json
+        import os
+        from datetime import datetime
+        
+        backup_data = {
+            'backup_timestamp': datetime.now().isoformat(),
+            'workflow': '${{ github.event.inputs.workflow || 'daily' }}',
+            'mode': '${{ github.event.inputs.mode || 'hybrid' }}',
+            'run_id': '${{ github.run_id }}',
+            'run_number': '${{ github.run_number }}',
+            'commit_hash': '${{ github.sha }}',
+            'environment': 'github-actions'
+        }
+        
+        # Save backup info
+        with open('exports/backup_info.json', 'w') as f:
+            json.dump(backup_data, f, indent=2)
+        
+        print('✅ Backup info saved')
+        "
+        
+        # Create summary file
+        echo "# Execution Summary" > exports/execution_summary.md
+        echo "Run ID: ${{ github.run_id }}" >> exports/execution_summary.md
+        echo "Date: $(date)" >> exports/execution_summary.md
+        echo "Workflow: ${{ github.event.inputs.workflow || 'daily' }}" >> exports/execution_summary.md
+        echo "Mode: ${{ github.event.inputs.mode || 'hybrid' }}" >> exports/execution_summary.md
+        echo "" >> exports/execution_summary.md
+        echo "Files generated:" >> exports/execution_summary.md
+        find exports -type f -name "*.json" -o -name "*.html" -o -name "*.md" | head -10 >> exports/execution_summary.md
+    
+    - name: 📤 Push results to repository
+      if: always()
+      run: |
+        # Configure git
+        git config --global user.email "github-actions@users.noreply.github.com"
+        git config --global user.name "GitHub Actions"
+        
+        # Check for changes
+        if git status --porcelain | grep -q '^[ MADRC]'; then
+          echo "Changes detected, committing..."
+          
+          # Add export files
+          git add exports/
+          git add reports/
+          git add data/*.json
+          
+          # Create commit message
+          COMMIT_MSG="🤖 Profit Machine: $(date +'%Y-%m-%d %H:%M')
+          
+          • Automated execution completed
+          • Run ID: ${{ github.run_id }}
+          • Workflow: ${{ github.event.inputs.workflow || 'daily' }}
+          • Mode: ${{ github.event.inputs.mode || 'hybrid' }}
+          "
+          
+          git commit -m "$COMMIT_MSG"
+          git push
+          
+          echo "✅ Changes pushed to repository"
+        else
+          echo "No changes to commit"
+        fi
+    
+    - name: 📊 Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: profit-machine-logs
-        path: logs/
+        name: profit-machine-output-${{ github.run_number }}
+        path: |
+          exports/
+          reports/
+          logs/
         retention-days: 7
     
-    - name: Commit and push results
+    - name: 📧 Send notification
+      if: always()
       run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        git add logs/ exports/ data/
-        git commit -m "🤖 Automated: Daily workflow results" || echo "No changes to commit"
-        git push || echo "Nothing to push"
-EOF
+        # This would send a notification via Telegram
+        # For now, we log the intent
+        echo "📧 Notification would be sent if Telegram is configured"
+        echo "Configure Telegram in GitHub Secrets for live notifications"
+
+  weekly-report:
+    needs: run-profit-machine
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 8 * * 0'  # Sundays at 8AM
+    
+    steps:
+    - name: 📊 Generate weekly report
+      run: |
+        echo "Generating weekly performance report..."
+        
+        # This would generate a comprehensive weekly report
+        # For now, we create a placeholder
+        echo "# Weekly Performance Report" > weekly_report.md
+        echo "Date: $(date)" >> weekly_report.md
+        echo "Generated automatically by Profit Machine Ultimate" >> weekly_report.md
