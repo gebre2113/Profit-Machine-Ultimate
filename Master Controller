@@ -1,0 +1,351 @@
+# main_controller_enhanced.py
+
+"""
+🏆 PROFIT MACHINE ULTIMATE - ENHANCED MASTER CONTROLLER
+🚀 Adds Telegram reporting, GitHub integration, and better error handling
+"""
+
+import os
+import sys
+import json
+import time
+import logging
+import traceback
+from datetime import datetime, timedelta
+from pathlib import Path
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from utils.telegram_reporter import EnhancedTelegramReporter
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+
+class EnhancedMasterController:
+    """Enhanced master controller with Telegram and GitHub integration"""
+    
+    def __init__(self):
+        self.project_root = Path(__file__).parent
+        self.config = self._load_config()
+        
+        # Initialize reporting
+        self.telegram_reporter = None
+        if TELEGRAM_AVAILABLE and self.config.get('telegram', {}).get('enabled', False):
+            self.telegram_reporter = EnhancedTelegramReporter(
+                self.config['telegram']['bot_token'],
+                self.config['telegram']['chat_id']
+            )
+        
+        # GitHub Actions detection
+        self.is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
+        self.run_id = os.getenv('GITHUB_RUN_ID', 'local')
+        
+        # Enhanced logging
+        self.setup_enhanced_logging()
+        
+        # Performance tracking
+        self.performance_tracker = PerformanceTracker()
+        
+        print("🎛️  Enhanced Master Controller Initialized")
+        if self.is_github_actions:
+            print("🌐 Running in GitHub Actions environment")
+    
+    def setup_enhanced_logging(self):
+        """Setup enhanced logging with file rotation"""
+        
+        log_dir = self.project_root / 'logs'
+        log_dir.mkdir(exist_ok=True)
+        
+        # Create loggers for different components
+        self.loggers = {
+            'master': self._create_logger('master'),
+            'v10': self._create_logger('v10'),
+            'v11': self._create_logger('v11'),
+            'github': self._create_logger('github')
+        }
+    
+    def _create_logger(self, name: str) -> logging.Logger:
+        """Create a logger for a specific component"""
+        
+        logger = logging.getLogger(f'profit_machine.{name}')
+        logger.setLevel(logging.INFO)
+        
+        # File handler with rotation
+        file_handler = logging.FileHandler(
+            f'logs/{name}_{datetime.now().strftime("%Y%m%d")}.log'
+        )
+        file_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        )
+        logger.addHandler(file_handler)
+        
+        # Console handler for GitHub Actions
+        if self.is_github_actions:
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(
+                logging.Formatter('::%(levelname)s::%(name)s - %(message)s')
+            )
+            logger.addHandler(console_handler)
+        
+        return logger
+    
+    def execute_with_retry(self, func, max_retries=3, delay=5):
+        """Execute function with retry logic"""
+        
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                
+                self.loggers['master'].warning(
+                    f"Attempt {attempt + 1} failed, retrying in {delay}s: {e}"
+                )
+                time.sleep(delay)
+    
+    def run_daily_optimized(self):
+        """Optimized daily workflow for GitHub Actions"""
+        
+        start_time = time.time()
+        
+        try:
+            # Step 1: Check system health
+            self.loggers['master'].info("🔍 Checking system health...")
+            health_status = self.check_system_health()
+            
+            if not health_status['healthy']:
+                error_msg = f"System health check failed: {health_status['issues']}"
+                self.loggers['master'].error(error_msg)
+                
+                if self.telegram_reporter:
+                    self.telegram_reporter.send_error_report(
+                        error_msg, 0, 'health_check'
+                    )
+                
+                return {'success': False, 'error': error_msg}
+            
+            # Step 2: Load or generate topics
+            self.loggers['master'].info("🎯 Generating topics...")
+            topics = self.get_optimized_topics()
+            
+            # Step 3: Smart execution
+            results = {
+                'v10_articles': [],
+                'v11_articles': [],
+                'enhanced_articles': [],
+                'failed_executions': []
+            }
+            
+            for topic_data in topics:
+                self.loggers['master'].info(f"Processing: {topic_data['topic']}")
+                
+                # Smart routing
+                target = self.smart_router_enhanced(topic_data)
+                
+                if target == 'v10':
+                    result = self.execute_with_retry(
+                        lambda: self.run_v10(topic_data)
+                    )
+                else:
+                    result = self.execute_with_retry(
+                        lambda: self.run_v11(topic_data)
+                    )
+                
+                if result['success']:
+                    if target == 'v10':
+                        results['v10_articles'].append(result)
+                    else:
+                        results['v11_articles'].append(result)
+                else:
+                    results['failed_executions'].append({
+                        'topic': topic_data['topic'],
+                        'error': result.get('error'),
+                        'target': target
+                    })
+            
+            # Step 4: Post-processing
+            if results['v10_articles'] and self.config.get('enable_hybrid_mode', True):
+                self.loggers['master'].info("🔄 Running hybrid enhancement...")
+                enhanced = self.enhance_with_v11_batch(results['v10_articles'])
+                results['enhanced_articles'] = enhanced
+            
+            # Step 5: Generate reports
+            execution_time = time.time() - start_time
+            report = self.generate_detailed_report(results, execution_time)
+            
+            # Step 6: Send notifications
+            if self.telegram_reporter:
+                self.telegram_reporter.send_master_report({
+                    'workflow': 'daily_optimized',
+                    'execution_time': execution_time,
+                    'results': results
+                })
+            
+            # Step 7: Backup to GitHub
+            if self.is_github_actions:
+                self.backup_to_github(results)
+            
+            self.loggers['master'].info(
+                f"✅ Daily optimized workflow completed in {execution_time:.1f}s"
+            )
+            
+            return {
+                'success': True,
+                'report': report,
+                'execution_time': execution_time
+            }
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            error_msg = str(e)
+            self.loggers['master'].error(f"Workflow failed: {error_msg}")
+            
+            if self.telegram_reporter:
+                self.telegram_reporter.send_error_report(
+                    error_msg, execution_time, 'daily_optimized'
+                )
+            
+            return {
+                'success': False,
+                'error': error_msg,
+                'execution_time': execution_time
+            }
+    
+    def smart_router_enhanced(self, topic_data: Dict) -> str:
+        """Enhanced smart routing with ML-like decision making"""
+        
+        topic = topic_data['topic']
+        category = topic_data['category']
+        
+        # Factor 1: Category value
+        category_scores = {
+            'finance': 10,
+            'business': 9,
+            'technology': 8,
+            'health': 7,
+            'education': 6,
+            'lifestyle': 5
+        }
+        
+        base_score = category_scores.get(category, 5)
+        
+        # Factor 2: Topic length (longer = more complex)
+        word_count = len(topic.split())
+        if word_count > 8:
+            base_score += 2
+        elif word_count > 5:
+            base_score += 1
+        
+        # Factor 3: Time of day (optimize for social media posting)
+        hour = datetime.now().hour
+        if 9 <= hour <= 17:  # Business hours
+            base_score += 1  # Better for v11 (social media ready)
+        
+        # Factor 4: Day of week
+        day = datetime.now().weekday()
+        if day in [0, 1, 2]:  # Monday-Wednesday
+            base_score += 1  # Higher traffic days
+        
+        # Decision
+        if base_score >= 8:
+            return 'v11'  # High-value content to GOD MODE
+        else:
+            return 'v10'  # Regular content to v10
+    
+    def backup_to_github(self, results: Dict):
+        """Enhanced GitHub backup with optimized commits"""
+        
+        if not self.is_github_actions:
+            return
+        
+        try:
+            import subprocess
+            
+            # Only commit if there are actual results
+            if results['v10_articles'] or results['v11_articles']:
+                # Add files
+                subprocess.run(['git', 'add', 'exports/'], check=False)
+                subprocess.run(['git', 'add', 'reports/'], check=False)
+                subprocess.run(['git', 'add', 'data/*.json'], check=False)
+                
+                # Commit with meaningful message
+                commit_message = f"""🤖 Profit Machine Backup: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+Created {len(results['v10_articles'])} v10 articles
+Created {len(results['v11_articles'])} v11 GOD MODE articles
+Enhanced {len(results['enhanced_articles'])} articles
+Failed: {len(results['failed_executions'])}
+
+Run ID: {self.run_id}
+"""
+                
+                subprocess.run(
+                    ['git', 'commit', '-m', commit_message],
+                    check=False
+                )
+                
+                # Push
+                subprocess.run(['git', 'push'], check=False)
+                
+                self.loggers['github'].info("✅ Backup pushed to GitHub")
+        
+        except Exception as e:
+            self.loggers['github'].error(f"GitHub backup failed: {e}")
+
+# Additional helper classes
+class PerformanceTracker:
+    """Track system performance"""
+    
+    def __init__(self):
+        self.metrics = {
+            'execution_times': [],
+            'success_counts': {'v10': 0, 'v11': 0, 'total': 0},
+            'error_counts': {'v10': 0, 'v11': 0, 'total': 0},
+            'resource_usage': []
+        }
+    
+    def record_execution(self, version: str, success: bool, duration: float):
+        """Record an execution"""
+        
+        if version in ['v10', 'v11']:
+            if success:
+                self.metrics['success_counts'][version] += 1
+                self.metrics['success_counts']['total'] += 1
+            else:
+                self.metrics['error_counts'][version] += 1
+                self.metrics['error_counts']['total'] += 1
+            
+            self.metrics['execution_times'].append({
+                'version': version,
+                'duration': duration,
+                'timestamp': datetime.now().isoformat()
+            })
+    
+    def get_performance_report(self) -> Dict:
+        """Generate performance report"""
+        
+        if not self.metrics['execution_times']:
+            return {'status': 'No data'}
+        
+        total_executions = len(self.metrics['execution_times'])
+        success_rate = (
+            self.metrics['success_counts']['total'] / total_executions * 100
+            if total_executions > 0 else 0
+        )
+        
+        avg_duration = sum(
+            e['duration'] for e in self.metrics['execution_times']
+        ) / total_executions
+        
+        return {
+            'total_executions': total_executions,
+            'success_rate': round(success_rate, 1),
+            'average_duration': round(avg_duration, 1),
+            'v10_success': self.metrics['success_counts']['v10'],
+            'v11_success': self.metrics['success_counts']['v11'],
+            'v10_errors': self.metrics['error_counts']['v10'],
+            'v11_errors': self.metrics['error_counts']['v11']
+        }
