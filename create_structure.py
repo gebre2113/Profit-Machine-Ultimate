@@ -1,6 +1,7 @@
 import os
 import json
 from pathlib import Path
+import shutil
 
 def create_complete_structure():
     """Profit Machine Ultimate የተሟላ መዋቅር ፍጠር"""
@@ -29,18 +30,44 @@ def create_complete_structure():
     
     print("🏗️  Profit Machine Ultimate መዋቅር እየፈጠረ...")
     
-    # ዳይሬክቶሪዎችን ፍጠር
+    # ለማስቀረት የሚገባው የድህረ-ገጽ ምልክቶች ስርዓት
+    protected_items = {
+        '.github',
+        '.git',
+        'README.md',
+        'requirements.txt',
+        '.gitignore',
+        'master_config.json',
+        '.env.example'
+    }
+    
+    # ዳይሬክቶሪዎችን ፍጠር (ፋይሎችን ከሌለ ወይም ፋይል ከሆነ ሰርድ)
     for directory in directories:
         dir_path = project_root / directory
-        dir_path.mkdir(parents=True, exist_ok=True)
+        
+        # የድህረ-ገጽ ስርዓትን አትንካ
+        if any(protected in str(dir_path) for protected in protected_items):
+            continue
+            
+        # ከሆነ ፋይል፣ ሰርድዎ
+        if dir_path.exists() and dir_path.is_file():
+            print(f"⚠️  ፋይል ተገኝቷል፣ እየተሰረዘ...: {directory}")
+            dir_path.unlink()
+        
+        # ዳይሬክቶሪውን ፍጠር
+        try:
+            dir_path.mkdir(parents=True, exist_ok=True)
+            print(f"✅ ተፈጥሯል: {directory}/")
+        except FileExistsError as e:
+            print(f"⚠️  ዳይሬክቶሪ ቀድሞ ይገኛል: {directory}")
         
         # ለፓይዘን ፓኬጆች __init__.py ጨምር
         if directory in ['core', 'v10', 'v11', 'utils']:
-            (dir_path / '__init__.py').touch()
-        
-        print(f"✅ ተፈጥሯል: {directory}/")
+            init_file = dir_path / '__init__.py'
+            if not init_file.exists():
+                init_file.touch()
     
-    # ዋና የሆኑ ፋይሎችን ፍጠር
+    # ዋና የሆኑ ፋይሎችን ፍጠር (ካልተገኙ ብቻ)
     essential_files = {
         'README.md': """# 🏆 Profit Machine Ultimate
 ሙሉ በሙሉ አውቶማቲክ የዲጂታል ቢዝነስ ስርአት
@@ -276,11 +303,16 @@ social_media/
 """
     }
     
-    # ፋይሎችን ፍጠር
+    # ፋይሎችን ፍጠር (ካልተገኙ ብቻ)
     for filename, content in essential_files.items():
         file_path = project_root / filename
-        file_path.write_text(content)
-        print(f"✅ ተፈጥሯል: {filename}")
+        
+        # ፋይሉ ከሌለ ብቻ ፍጠር
+        if not file_path.exists():
+            file_path.write_text(content)
+            print(f"✅ ተፈጥሯል: {filename}")
+        else:
+            print(f"⚠️  ቀድሞ ይገኛል: {filename}")
     
     # ለመዋቅር ባዶ የፓይዘን ፋይሎችን ፍጠር
     empty_py_files = [
@@ -293,9 +325,16 @@ social_media/
     
     for filepath in empty_py_files:
         file_path = project_root / filepath
+        
+        # የፋይል ዳይሬክቶሪ ካልተገኘ ፍጠር
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.touch()
-        print(f"✅ ተፈጥሯል: {filepath}")
+        
+        # ፋይሉ ከሌለ ብቻ ፍጠር
+        if not file_path.exists():
+            file_path.touch()
+            print(f"✅ ተፈጥሯል: {filepath}")
+        else:
+            print(f"⚠️  ቀድሞ ይገኛል: {filepath}")
     
     print("\n🎉 የፕሮጀክቱ መዋቅር በተሳካ ሁኔታ ተፈጥሯል!")
     print("\n📋 ቀጣይ እርምጃዎች:")
@@ -304,6 +343,50 @@ social_media/
     print("3. .env.example ወደ .env ይቅዱ እና API keys ያክሉ")
     print("4. ይህን ያሂዱ: python main_controller.py --setup")
     print("5. ይሞክሩ: python main_controller.py --workflow daily")
+    
+    # ለGitHub Actions የተለየ ምክር
+    print("\n🔧 ለGitHub Actions:")
+    print("1. ይህንን ይጫኑ: pip install -r requirements.txt")
+    print("2. የሚፈልጉትን API keys እንደ GitHub Secrets ያከማቹ")
+    print("3. .github/workflows/ ውስጥ የስራ ፍሰት ፋይሎችን ይጨምሩ")
+
+def clean_and_create():
+    """ነገሮችን አጽድቆ እንደገና መዋቅሩን ፍጠር"""
+    project_root = Path(__file__).parent
+    
+    # ለማስቀረት የሚገባው የድህረ-ገጽ ምልክቶች
+    protected_items = ['.git', '.github', 'README.md', 'LICENSE']
+    
+    print("🧹 የድህረ-ገጽ ስርዓቱን ሳይጎዳ አጽዳቂ...")
+    
+    # የተፈጠሩትን ዳይሬክቶሪዎች ሰርድ (ጥበቃ ያለውን ሳይጎዳ)
+    items_to_remove = [
+        'core', 'v10', 'v11', 'utils', 'data', 'exports',
+        'logs', 'backups', 'v10_original', 'v11_original',
+        'reports', 'social_media', 'audio_output', 'templates'
+    ]
+    
+    for item in items_to_remove:
+        item_path = project_root / item
+        
+        # ጥበቃ ያለውን አትንኩ
+        if any(protected in str(item_path) for protected in protected_items):
+            continue
+            
+        if item_path.exists():
+            if item_path.is_file():
+                item_path.unlink()
+                print(f"🗑️  ፋይል ተሰረዘ: {item}")
+            elif item_path.is_dir():
+                shutil.rmtree(item_path)
+                print(f"🗑️  ዳይሬክቶሪ ተሰረዘ: {item}")
+    
+    print("\n🔧 አዲስ መዋቅር እየፈጠረ...")
+    create_complete_structure()
 
 if __name__ == "__main__":
+    # የአጽዳቂ ሞድን ለመጠቀም፡-
+    # clean_and_create()
+    
+    # ለመደበኛ አጠቃቀም፡-
     create_complete_structure()
