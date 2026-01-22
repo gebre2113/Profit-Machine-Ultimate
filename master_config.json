@@ -1,0 +1,43 @@
+{
+  "mode": "auto",
+  "hybrid_strategy": "quality_first",
+  "v10_settings": {
+    "enabled": true,
+    "daily_limit": 2,
+    "target_word_count": 1800,
+    "auto_publish": false,
+    "enable_affiliate": true
+  },
+  "v11_settings": {
+    "enabled": true,
+    "daily_limit": 1,
+    "enable_adsense_protection": true,
+    "enable_social_posting": true,
+    "enable_verification": true,
+    "enable_internal_linking": true
+  },
+  "routing_rules": {
+    "new_topic": "v10",
+    "enhancement": "v11",
+    "high_value_topic": "v11",
+    "quick_content": "v10"
+  },
+  "scheduling": {
+    "v10_schedule": [
+      9,
+      14,
+      19
+    ],
+    "v11_schedule": [
+      10,
+      16
+    ],
+    "max_daily_executions": 5
+  },
+  "notifications": {
+    "telegram_enabled": true,
+    "error_alerts": true,
+    "daily_reports": true,
+    "revenue_alerts": true
+  }
+}
