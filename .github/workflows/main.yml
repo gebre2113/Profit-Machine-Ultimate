@@ -1,58 +1,26 @@
-# .github/workflows/initialize.yml
 name: Initialize Project Structure
-
-on:
-  workflow_dispatch:  # በእጅ ለመስራት ብቻ
-  push:
-    branches: [ main ]
-    paths:
-      - 'create_structure.py'
-      - '.github/workflows/initialize.yml'
-
-permissions:
-  contents: write
-  pull-requests: write
+on: 
+  workflow_dispatch: # እኛ ስንፈልግ ብቻ "Run" እንድንለው
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    
-    - name: Generate project structure
-      run: |
-        python create_structure.py
-    
-    - name: Check for changes
-      id: git-check
-      run: |
-        if git diff --quiet; then
-          echo "changes=false" >> $GITHUB_OUTPUT
-        else
-          echo "changes=true" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Configure Git
-      if: steps.git-check.outputs.changes == 'true'
-      run: |
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-    
-    - name: Commit and push changes
-      if: steps.git-check.outputs.changes == 'true'
-      run: |
-        git add .
-        git commit -m "🤖 Automated: Generated project structure"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run Structure Creator
+        run: python create_structure.py
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add .
+          git commit -m "Complete project structure generated" || echo "ምንም አዲስ ፋይል የለም"
+          git push
