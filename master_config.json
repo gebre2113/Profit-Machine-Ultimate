@@ -1,43 +1,208 @@
 {
-  "mode": "auto",
-  "hybrid_strategy": "quality_first",
-  "v10_settings": {
-    "enabled": true,
-    "daily_limit": 2,
-    "target_word_count": 1800,
-    "auto_publish": false,
-    "enable_affiliate": true
+  "project_name": "Profit Machine Enterprise",
+  "description": "AI-powered business content generation system for global and Ethiopian markets",
+  "default_language": "english",
+  "supported_languages": ["english", "amharic", "oromo", "tigrinya", "french", "arabic"],
+  "version": "4.0.0",
+  "author": "ProfitEngine Team",
+  "contact": "support@profitengine.ai",
+  "created_date": "2024-01-01",
+  "last_updated": "2024-01-23",
+  "license": "Proprietary",
+  
+  "api_settings": {
+    "max_retries": 3,
+    "cache_duration": 3600,
+    "rate_limit_delay": 1,
+    "request_timeout": 30,
+    "enable_fallback": true,
+    "concurrent_requests": 2
   },
-  "v11_settings": {
-    "enabled": true,
-    "daily_limit": 1,
-    "enable_adsense_protection": true,
-    "enable_social_posting": true,
-    "enable_verification": true,
-    "enable_internal_linking": true
+  
+  "content_settings": {
+    "default_country": "ET",
+    "target_audience": "global_business",
+    "content_tone": "professional",
+    "min_content_length": 500,
+    "max_content_length": 5000,
+    "enable_images": true,
+    "image_quality": "high",
+    "image_provider": "pollinations.ai",
+    "auto_translate": false,
+    "quality_levels": {
+      "v9": "standard",
+      "v10": "premium",
+      "v11": "enterprise"
+    }
   },
-  "routing_rules": {
-    "new_topic": "v10",
-    "enhancement": "v11",
-    "high_value_topic": "v11",
-    "quick_content": "v10"
+  
+  "research_settings": {
+    "sources": ["news_api", "market_data", "trend_analysis"],
+    "news_age_days": 7,
+    "min_sources": 3,
+    "max_sources": 10,
+    "geographic_focus": "mixed",
+    "language_preference": "english"
   },
-  "scheduling": {
-    "v10_schedule": [
-      9,
-      14,
-      19
+  
+  "system_settings": {
+    "auto_backup": true,
+    "cleanup_old_files": true,
+    "cleanup_days": 7,
+    "max_concurrent_runs": 2,
+    "enable_logging": true,
+    "log_retention_days": 30,
+    "enable_notifications": true,
+    "notification_channels": ["console", "file"],
+    "backup_location": "exports/backups"
+  },
+  
+  "version_overrides": {
+    "v9": {
+      "simple_mode": true,
+      "output_format": "text",
+      "max_topics_per_run": 5,
+      "research_depth": "basic",
+      "content_style": "simple_article",
+      "image_style": "illustrative",
+      "target_language": "english",
+      "features": ["news_research", "basic_content", "simple_image", "local_saving"],
+      "pricing_tier": "free",
+      "use_case": "individual_entrepreneurs"
+    },
+    
+    "v10": {
+      "automation": true,
+      "output_format": "html",
+      "max_topics_per_run": 10,
+      "research_depth": "intermediate",
+      "content_style": "enhanced_article",
+      "image_style": "infographic",
+      "target_language": "english",
+      "features": ["news_research", "market_data", "enhanced_content", "html_report", "batch_processing", "scheduled_runs"],
+      "pricing_tier": "professional",
+      "use_case": "small_businesses"
+    },
+    
+    "v11": {
+      "enterprise_features": true,
+      "output_format": "markdown",
+      "max_topics_per_run": 20,
+      "research_depth": "advanced",
+      "content_style": "business_strategy",
+      "image_style": "professional",
+      "target_language": "english",
+      "features": ["comprehensive_research", "market_analysis", "roi_analysis", "strategy_document", "comprehensive_report", "batch_processing", "comparison_tools", "api_access"],
+      "pricing_tier": "enterprise",
+      "use_case": "corporations_investors"
+    }
+  },
+  
+  "paths": {
+    "v9_output": "V9",
+    "v10_output": "v10",
+    "v11_output": "v11",
+    "logs": "logs",
+    "backup": "backup",
+    "templates": "templates",
+    "data": "data",
+    "exports": "exports",
+    "comparisons": "comparisons",
+    "batch_reports": "batch_reports",
+    "api_docs": "docs/api",
+    "user_guides": "docs/guides"
+  },
+  
+  "api_keys_required": {
+    "groq": {
+      "key_name": "GROQ_API_KEY",
+      "purpose": "AI content generation",
+      "required": true,
+      "tier": "all"
+    },
+    "news": {
+      "key_name": "NEWS_API_KEY",
+      "purpose": "News research and data",
+      "required": true,
+      "tier": "all"
+    },
+    "serper": {
+      "key_name": "SERPER_API_KEY",
+      "purpose": "Market data and search",
+      "required": false,
+      "tier": ["v10", "v11"]
+    },
+    "telegram": {
+      "key_name": "TELEGRAM_BOT_TOKEN",
+      "purpose": "Notifications",
+      "required": false,
+      "tier": "all"
+    }
+  },
+  
+  "supported_countries": {
+    "africa": ["ET", "KE", "NG", "ZA", "EG", "GH"],
+    "europe": ["GB", "DE", "FR", "IT", "ES", "NL"],
+    "americas": ["US", "CA", "BR", "MX"],
+    "asia": ["CN", "JP", "IN", "SG", "AU"]
+  },
+  
+  "default_topics": {
+    "v9": [
+      "Small Business Opportunities in Africa",
+      "Digital Transformation in Emerging Markets",
+      "Sustainable Agriculture Practices",
+      "E-commerce Growth Strategies",
+      "Renewable Energy Investments"
     ],
-    "v11_schedule": [
-      10,
-      16
+    "v10": [
+      "Digital Marketing ROI Analysis",
+      "Supply Chain Optimization",
+      "Remote Team Management",
+      "Data Analytics for Business",
+      "Customer Experience Innovation"
     ],
-    "max_daily_executions": 5
+    "v11": [
+      "Artificial Intelligence Investment Portfolio",
+      "Global Market Expansion Strategy",
+      "Corporate Sustainability Framework",
+      "Mergers and Acquisitions Analysis",
+      "Technology Disruption Risk Assessment"
+    ]
   },
-  "notifications": {
-    "telegram_enabled": true,
-    "error_alerts": true,
-    "daily_reports": true,
-    "revenue_alerts": true
+  
+  "performance_settings": {
+    "enable_cache": true,
+    "cache_ttl": 7200,
+    "enable_compression": false,
+    "enable_monitoring": true,
+    "max_file_size": "10MB",
+    "memory_limit": "512MB",
+    "timeout_minutes": 30
+  },
+  
+  "notification_settings": {
+    "email_notifications": false,
+    "success_notifications": true,
+    "error_notifications": true,
+    "completion_notifications": true,
+    "daily_summary": true,
+    "notification_format": "markdown"
+  },
+  
+  "security_settings": {
+    "encrypt_sensitive_data": false,
+    "log_sanitization": true,
+    "api_key_rotation_days": 90,
+    "access_control": "role_based",
+    "data_retention_days": 365
+  },
+  
+  "analytics_settings": {
+    "track_usage": true,
+    "collect_metrics": ["run_count", "success_rate", "average_time", "popular_topics"],
+    "privacy_compliant": true,
+    "anonymize_data": true,
+    "report_frequency": "weekly"
   }
 }
