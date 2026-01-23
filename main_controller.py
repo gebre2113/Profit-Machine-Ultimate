@@ -565,18 +565,15 @@ class EnhancedMasterController:
                 subprocess.run(['git', 'add', '*.json'], check=False, capture_output=True)
                 subprocess.run(['git', 'add', '*.py'], check=False, capture_output=True)
                 
-                # Commit with meaningful message
-                commit_message = f"""🤖 Profit Machine Backup: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-
-📊 Results:
-- Created {len(results['v10_articles'])} v10 articles
-- Created {len(results['v11_articles'])} v11 articles
-- Enhanced {len(results['enhanced_articles'])} articles
-- WordPress: {self.wp_published} published, {self.wp_failed} failed
-- Failed: {len(results['failed_executions'])}
-
-🌐 Run ID: {self.run_id}
-"""
+                # ከ f-string ይልቅ ተራ ስትሪንግ በመጠቀም ስህተቱን ማስቀረት
+                commit_message = "🤖 Profit Machine Backup: " + datetime.now().strftime('%Y-%m-%d %H:%M') + "\n\n"
+                commit_message += "📊 Results:\n"
+                commit_message += "- Created " + str(len(results['v10_articles'])) + " v10 articles\n"
+                commit_message += "- Created " + str(len(results['v11_articles'])) + " v11 articles\n"
+                commit_message += "- Enhanced " + str(len(results['enhanced_articles'])) + " articles\n"
+                commit_message += "- WordPress: " + str(self.wp_published) + " published, " + str(self.wp_failed) + " failed\n"
+                commit_message += "- Failed: " + str(len(results['failed_executions'])) + "\n\n"
+                commit_message += "🌐 Run ID: " + str(self.run_id)
                 
                 subprocess.run(
                     ['git', 'commit', '-m', commit_message],
