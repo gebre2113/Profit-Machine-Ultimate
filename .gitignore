@@ -1,6 +1,19 @@
 # .gitignore for Profit Machine Ultimate
 
-# API Keys and Secrets
+# አገልግሎት ውሂብ እና ውጤቶች (ከGit ማግኛ ውጭ ሊሆኑ ይገባል)
+/exports/*
+!/exports/.gitkeep
+
+/results/*
+!/results/.gitkeep
+
+/logs/*
+!/logs/.gitkeep
+
+/cache/*
+!/cache/.gitkeep
+
+# የምስጢር ቁልፎች እና ኮንፊግ ፋይሎች
 .env
 .env.local
 *.key
@@ -29,9 +42,12 @@ sdist/
 var/
 wheels/
 *.egg-info/
-.installed.cfg
+.installed-cfg
 *.egg
 MANIFEST
+.pytest_cache/
+.mypy_cache/
+.coverage
 
 # Virtual Environments
 venv/
@@ -47,14 +63,6 @@ venv.bak/
 *.swo
 *~
 
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
 # Database
 *.db
 *.db-journal
@@ -64,10 +72,6 @@ lerna-debug.log*
 # Backups
 backups/
 *.backup
-
-# Exports (these can be large and change frequently)
-exports/
-!exports/README.md
 
 # System files
 .DS_Store
@@ -94,6 +98,7 @@ temp/
 # Project specific
 data/  # Exclude data directory but keep structure
 !data/README.md
+!data/.gitkeep
 
 # GitHub Actions artifacts
 .github/actions/
