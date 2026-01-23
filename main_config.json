@@ -1,20 +1,18 @@
 {
-  "mode": "hybrid",
-  "hybrid_strategy": "quality_first",
-  "v10_settings": {
-    "enabled": true,
-    "daily_limit": 2,
-    "target_word_count": 1800
-  },
-  "v11_settings": {
-    "enabled": true,
-    "daily_limit": 1,
-    "enable_adsense_protection": true,
-    "enable_social_posting": false
-  },
-  "telegram": {
-    "enabled": true,
-    "bot_token": "7793144183",
-    "chat_id": "2082218321"
-  }
+    "telegram": {
+        "enabled": true,
+        "bot_token": "7793144183:AAHkg0E6wDg3p6Q7X8Y2Z1Q4wV5xY6z7A8B",
+        "chat_id": "2082218321"
+    },
+    "wordpress": {
+        "enabled": true,
+        "url": "",
+        "username": "",
+        "app_password": "",
+        "auto_publish_to_wp": true
+    },
+    "enable_hybrid_mode": true,
+    "max_retries": 3,
+    "retry_delay": 5,
+    "auto_publish_to_wp": true
 }
