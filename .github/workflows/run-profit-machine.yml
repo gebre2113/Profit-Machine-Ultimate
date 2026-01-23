@@ -1,0 +1,198 @@
+name: Run Profit Machine Ultimate
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Target region'
+        required: true
+        default: 'north_america'
+        type: choice
+        options:
+        - north_america
+        - europe
+        - asia_pacific
+      priority:
+        description: 'Processing priority'
+        required: false
+        default: 'normal'
+        type: choice
+        options:
+        - low
+        - normal
+        - high
+
+concurrency:
+  group: profit-machine-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Create exports directory structure
+        run: |
+          mkdir -p exports/daily exports/weekly exports/monthly exports/temp
+          mkdir -p results logs cache
+          
+          # Create backup_info.json if it doesn't exist
+          if [ ! -f exports/backup_info.json ]; then
+            echo '{
+              "backup_info": {
+                "version": "2.0.0",
+                "last_backup": null,
+                "backup_schedule": "daily",
+                "retention_days": 30,
+                "storage_locations": ["local"],
+                "compression_enabled": true,
+                "encryption_enabled": false
+              }
+            }' > exports/backup_info.json
+          fi
+          
+          # Verify structure
+          tree exports/
+
+  run-profit-machine:
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install aiohttp pandas numpy pydantic redis cachetools
+          pip install boto3 google-cloud-storage cryptography
+      
+      - name: Run Profit Machine Engine
+        env:
+          REGION: ${{ github.event.inputs.region || 'north_america' }}
+          PRIORITY: ${{ github.event.inputs.priority || 'normal' }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          import os
+          from datetime import datetime
+          
+          # Mock results for testing
+          results = {
+            'status': 'success',
+            'timestamp': datetime.now().isoformat(),
+            'region': os.getenv('REGION'),
+            'priority': os.getenv('PRIORITY'),
+            'data': {
+              'market_analysis': {
+                'size': '10B',
+                'growth': '15%',
+                'competition': 'moderate'
+              },
+              'financial_projection': {
+                'revenue_5yr': '50M',
+                'roi': '35%',
+                'break_even': '18 months'
+              }
+            }
+          }
+          
+          # Save results
+          timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+          filename = f'results/results_{timestamp}.json'
+          
+          with open(filename, 'w') as f:
+            json.dump(results, f, indent=2)
+          
+          print(f'Results saved to {filename}')
+          
+          # Backup results
+          from utils.backup_manager import BackupManager
+          backup_mgr = BackupManager()
+          backup_path = backup_mgr.backup_results(results)
+          print(f'Backup created: {backup_path}')
+          "
+      
+      - name: Backup execution results
+        run: |
+          echo "Backing up execution results..."
+          
+          # Create backup archive
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          backup_file="exports/daily/backup_${timestamp}.tar.gz"
+          
+          tar -czf "${backup_file}" results/ logs/
+          
+          echo "Backup created: ${backup_file}"
+          ls -lh "${backup_file}"
+          
+          # Update backup info
+          python -c "
+          import json
+          from datetime import datetime
+          
+          with open('exports/backup_info.json', 'r') as f:
+            config = json.load(f)
+          
+          config['backup_info']['last_backup'] = datetime.now().isoformat()
+          
+          with open('exports/backup_info.json', 'w') as f:
+            json.dump(config, f, indent=2)
+          
+          print('Backup info updated')
+          "
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: profit-machine-results
+          path: |
+            results/
+            exports/daily/
+            logs/
+          retention-days: 7
+      
+      - name: Upload to S3 (optional)
+        if: env.AWS_ACCESS_KEY_ID != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          # Upload results to S3
+          timestamp=$(date +%Y/%m/%d)
+          aws s3 cp results/ s3://$S3_BUCKET/results/$timestamp/ --recursive
+          aws s3 cp exports/ s3://$S3_BUCKET/backups/$timestamp/ --recursive
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: run-profit-machine
+    if: always()
+    
+    steps:
+      - name: Cleanup old files
+        run: |
+          echo "Cleaning up old files..."
+          
+          # Remove files older than 7 days
+          find results/ -name "*.json" -mtime +7 -delete
+          find logs/ -name "*.log" -mtime +7 -delete
+          
+          echo "Cleanup completed"
