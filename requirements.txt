@@ -32,3 +32,42 @@ sqlite3
 # መገልጃዎች
 python-dateutil==2.8.2
 tqdm==4.66.1
+# Core dependencies
+requests==2.31.0
+groq==0.3.0
+python-dotenv==1.0.0
+schedule==1.2.0
+
+# Text-to-speech and multimedia
+gtts==2.3.2
+pygame==2.5.1
+
+# Data analysis
+pandas==2.1.4
+numpy==1.24.3
+
+# Social media (updated versions)
+tweepy==4.14.0
+facebook-sdk==3.1.0  # Changed from 4.0.0 to 3.1.0 for Python 3.11 compatibility
+
+# API clients
+aiohttp==3.9.1
+httpx==0.25.2
+
+# Utilities
+pydantic==2.5.0
+redis==5.0.1
+cachetools==5.3.2
+
+# Data visualization
+plotly==5.18.0
+seaborn==0.13.0
+matplotlib==3.8.2
+
+# Cloud services
+boto3==1.34.0
+google-cloud-storage==2.13.0
+
+# Security
+cryptography==41.0.7
+pyjwt==2.8.0
