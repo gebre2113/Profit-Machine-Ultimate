@@ -276,10 +276,6 @@ class EnhancedMasterController:
         content = content_data.get('content', '')
         
         # Convert markdown to HTML if needed (simplified)
-                # መጀመሪያ Content-ን አስተካክል (ከ f-string ውጭ)
-        formatted_content = content.replace('\n', '<br>').replace('# ', '<h2>').replace('## ', '<h3>')
-        
-        # አሁን HTML-ን በ f-string አዘጋጅ (ያለ backslash)
         html_content = f"""
         <div class="profit-machine-article">
             <h1>{title}</h1>
@@ -288,7 +284,7 @@ class EnhancedMasterController:
                 <p>Date: {datetime.now().strftime('%B %d, %Y')}</p>
             </div>
             <div class="article-content">
-                {formatted_content}
+                {content.replace('\\n', '<br>').replace('# ', '<h2>').replace('## ', '<h3>')}
             </div>
             <footer>
                 <p>Automatically generated content</p>
@@ -296,17 +292,17 @@ class EnhancedMasterController:
         </div>
         """
         
-        payload = {{
+        payload = {
             'title': title,
             'content': html_content,
-            'status': 'publish',  # በቀጥታ እንዲለጠፍ 'publish' አድርገነዋል
-            'categories': [1],
-            'meta': {{
+            'status': 'draft',  # Can change to 'publish' when ready
+            'categories': [1],  # Default category ID
+            'meta': {
                 'generated_by': 'Profit Machine v11.0',
-                'generated_at': datetime.now().isoformat()
-            }}
-        }}
-
+                'generated_at': datetime.now().isoformat(),
+                'article_id': content_data.get('id', 'unknown')
+            }
+        }
         
         try:
             self.loggers['wordpress'].info(f"📤 Publishing to WordPress: {title}")
