@@ -1,9 +1,43 @@
 {
-  "backup_timestamp": "2026-01-23T12:40:37.223433",
-  "workflow": "daily",
-  "mode": "hybrid",
-  "run_id": "21286470181",
-  "run_number": "31",
-  "commit_hash": "dd20908573057a1348138b224eb795684f298e2e",
-  "environment": "github-actions"
+  "backup_info": {
+    "version": "2.0.0",
+    "last_backup": null,
+    "backup_schedule": "daily",
+    "retention_days": 30,
+    "storage_locations": [
+      "local"
+    ],
+    "compression_enabled": true,
+    "encryption_enabled": false
+  },
+  "export_formats": {
+    "pdf": {
+      "enabled": true,
+      "template": "professional",
+      "watermark": true
+    },
+    "excel": {
+      "enabled": true,
+      "include_charts": true,
+      "auto_format": true
+    },
+    "json": {
+      "enabled": true,
+      "pretty_print": true,
+      "include_metadata": true
+    }
+  },
+  "notification_settings": {
+    "on_success": true,
+    "on_failure": true,
+    "channels": [
+      "slack",
+      "email",
+      "telegram"
+    ],
+    "recipients": [
+      "devops@company.com",
+      "alerts@company.com"
+    ]
+  }
 }
