@@ -1,0 +1,252 @@
+name: Daily Profit Machine Run
+
+on:
+  schedule:
+    # በየቀኑ እኩለ ሌሊት ላይ ይነሳል (UTC ሰዓት)
+    - cron: '0 0 * * *'  # በእለት 12:00 AM UTC
+  workflow_dispatch:      # እጅ ለማስነሳት
+    inputs:
+      version:
+        description: 'የሚስኬደው ስሪት'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+        - v9
+        - v10
+        - v11
+        - all
+      topic:
+        description: 'ርዕሰ ጉዳይ (ወይም "default" ለነባሪ ርዕሰ ጉዳዮች)'
+        required: false
+        default: 'default'
+        type: string
+
+jobs:
+  profit-engine-run:
+    runs-on: ubuntu-latest
+    
+    env:
+      TZ: 'Africa/Addis_Ababa'  # የኢትዮጵያ ሰዓት ሰጪ
+    
+    steps:
+    - name: 📥 ኮድ መውሰድ
+      uses: actions/checkout@v4
+    
+    - name: 🐍 ፓይቶን አዋቅር
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+    
+    - name: 📦 አስፈላጊ ሞጁሎች መጫን
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests python-dotenv colorama
+    
+    - name: 🔧 የስርዓት አዋቅር
+      run: |
+        # አስፈላጊ ፎልደሮች መፍጠር
+        mkdir -p logs exports comparisons batch_reports
+        mkdir -p V9 v10 v11
+        
+        # መሰረታዊ ቅንብር ፋይል መፍጠር (ካልተገኘ)
+        if [ ! -f master_config.json ]; then
+          echo '{
+            "project_name": "Profit Machine Enterprise",
+            "default_language": "english",
+            "version": "1.0.0",
+            "api_settings": {
+              "max_retries": 3,
+              "cache_duration": 3600
+            },
+            "version_overrides": {
+              "v9": { "simple_mode": true },
+              "v10": { "automation": true },
+              "v11": { "enterprise_features": true }
+            }
+          }' > master_config.json
+        fi
+        
+        # የስርዓት መረጃ
+        echo "📊 ስርዓት መረጃ:"
+        echo "Python version: $(python --version)"
+        echo "Current directory: $(pwd)"
+        ls -la
+    
+    - name: 🚀 የትርፍ ማሽን ማስነሳት
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
+        SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "🔑 የኤፒአይ ቁልፎች ተጭነዋል:"
+        echo "GROQ_API_KEY: $(if [ -n "$GROQ_API_KEY" ]; then echo "✅"; else echo "❌"; fi)"
+        echo "NEWS_API_KEY: $(if [ -n "$NEWS_API_KEY" ]; then echo "✅"; else echo "❌"; fi)"
+        echo "SERPER_API_KEY: $(if [ -n "$SERPER_API_KEY" ]; then echo "✅"; else echo "❌"; fi)"
+        
+        # በምን መለኪያ እንደሚሰራ መወሰን
+        VERSION="${{ github.event.inputs.version || 'all' }}"
+        TOPIC="${{ github.event.inputs.topic || 'default' }}"
+        
+        echo "🎯 የስራ መለኪያዎች:"
+        echo "ስሪት: $VERSION"
+        echo "ርዕሰ ጉዳይ: $TOPIC"
+        
+        # የሚስኬዱ ርዕሰ ጉዳዮች
+        if [ "$TOPIC" = "default" ]; then
+          if [ "$VERSION" = "v9" ]; then
+            TOPICS=("Small Businesses in Ethiopia" "Technology Trends" "Agriculture Innovation")
+          elif [ "$VERSION" = "v10" ]; then
+            TOPICS=("Digital Marketing Strategies" "E-commerce Growth" "Remote Work Benefits")
+          elif [ "$VERSION" = "v11" ]; then
+            TOPICS=("AI Investment Strategies" "Market Expansion Plans" "Sustainable Business Models")
+          else
+            TOPICS=("Global Technology Trends" "Business Innovation" "Economic Growth Opportunities")
+          fi
+        else
+          TOPICS=("$TOPIC")
+        fi
+        
+        # ዋና ስክሪፕት ማስነሳት
+        echo "🚀 የትርፍ ማሽን እየተነሳ ነው..."
+        
+        # የማስነሳት ቀን እና ሰዓት
+        START_TIME=$(date +%s)
+        DATE_TODAY=$(date +"%Y-%m-%d")
+        
+        # የስራ ሪፖርት ፋይል መፍጠር
+        REPORT_FILE="run_report_${DATE_TODAY}.txt"
+        echo "📋 የስራ ሪፖርት - $DATE_TODAY" > "$REPORT_FILE"
+        echo "======================================" >> "$REPORT_FILE"
+        
+        # ለእያንዳንዱ ርዕሰ ጉዳይ ማስኬድ
+        SUCCESS_COUNT=0
+        FAIL_COUNT=0
+        
+        for topic in "${TOPICS[@]}"; do
+          echo "" >> "$REPORT_FILE"
+          echo "🔍 ርዕሰ ጉዳይ: $topic" >> "$REPORT_FILE"
+          echo "🕒 የመጀመሪያ ሰዓት: $(date +"%H:%M:%S")" >> "$REPORT_FILE"
+          
+          # በ Python የትርፍ ማሽን ማስነሳት
+          if [ "$VERSION" = "all" ]; then
+            # ሶስቱንም ስሪቶች ማስኬድ
+            python3 -c "
+import sys
+import os
+sys.path.append('.')
+from Master_Controller import MasterController
+
+controller = MasterController()
+result = controller.run_all_versions('$topic', 'US')
+print(f'✅ {topic} - ሁሉም ስሪቶች ተጠናቀዋል')
+            " 2>&1 | tee -a "$REPORT_FILE"
+          else
+            # አንድ ስሪት ብቻ ማስኬድ
+            python3 -c "
+import sys
+import os
+sys.path.append('.')
+from Master_Controller import MasterController
+
+controller = MasterController()
+result = controller.run_version('$VERSION', '$topic', 'US')
+if result.get('success'):
+    print(f'✅ {topic} - ተሳክቷል')
+else:
+    print(f'❌ {topic} - አልተሳካም: {result.get(\"error\", \"Unknown\")}')
+            " 2>&1 | tee -a "$REPORT_FILE"
+          fi
+          
+          # የሂደቱን ሁኔታ መለየት
+          if [ $? -eq 0 ]; then
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            echo "✅ ሁኔታ: ተሳክቷል" >> "$REPORT_FILE"
+          else
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            echo "❌ ሁኔታ: አልተሳካም" >> "$REPORT_FILE"
+          fi
+          
+          echo "🕒 የማቋረጫ ሰዓት: $(date +"%H:%M:%S")" >> "$REPORT_FILE"
+          echo "---" >> "$REPORT_FILE"
+        done
+        
+        # የማጠቃለያ ስሌት
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+        
+        echo "" >> "$REPORT_FILE"
+        echo "📊 ማጠቃለያ" >> "$REPORT_FILE"
+        echo "==============" >> "$REPORT_FILE"
+        echo "ተሳክተዋል: $SUCCESS_COUNT" >> "$REPORT_FILE"
+        echo "አልተሳኩም: $FAIL_COUNT" >> "$REPORT_FILE"
+        echo "አጠቃላይ ጊዜ: ${DURATION} ሰከንድ" >> "$REPORT_FILE"
+        echo "የማጠናቀቂያ ሰዓት: $(date +"%Y-%m-%d %H:%M:%S")" >> "$REPORT_FILE"
+        
+        # የሪፖርት ፋይል ማስቀመጥ
+        echo "📄 ሪፖርት ተቀምጧል: $REPORT_FILE"
+        
+        # የስራ ማጠቃለያ ማሳየት
+        echo "🎉 የትርፍ ማሽን ስራ ተጠናቋል!"
+        echo "📈 ውጤት: $SUCCESS_COUNT ተሳክተዋል, $FAIL_COUNT አልተሳኩም"
+        echo "⏱️  ጊዜ: ${DURATION} ሰከንድ"
+    
+    - name: 📤 ውጤቶችን ማስቀመጥ (Artifacts)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: profit-machine-output-${{ github.run_id }}
+        path: |
+          V9/
+          v10/
+          v11/
+          exports/
+          comparisons/
+          batch_reports/
+          logs/
+          *.txt
+          *.log
+        retention-days: 7
+    
+    - name: 📝 የስራ ማጠቃለያ ማሳየት
+      if: always()
+      run: |
+        echo "📋 የ GitHub Actions ስራ ተጠናቋል"
+        echo "🔗 Workflow URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo "🏷️ Run ID: ${{ github.run_id }}"
+        echo "🎯 Triggered by: ${{ github.event_name }}"
+        
+        # የውጤት ማጠቃለያ
+        echo "📁 የተፈጠሩ ፋይሎች:"
+        echo "V9: $(ls -1 V9/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
+        echo "v10: $(ls -1 v10/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
+        echo "v11: $(ls -1 v11/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
+        echo "logs: $(ls -1 logs/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
+    
+    - name: 🔔 ማሳወቂያ (Telegram)
+      if: always() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+      run: |
+        # የስራ ሁኔታ መወሰን
+        if [ ${{ job.status }} == 'success' ]; then
+          STATUS="✅"
+          MESSAGE="በተሳካ ሁኔታ ተጠናቋል"
+        else
+          STATUS="❌"
+          MESSAGE="ችግር አለበት"
+        fi
+        
+        # Telegram መልዕክት መላክ
+        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+          -d chat_id="${TELEGRAM_CHAT_ID}" \
+          -d text="🤖 Profit Machine Run ${STATUS}
+
+${MESSAGE}
+📅 Date: $(date +'%Y-%m-%d')
+⏱️ Duration: ${DURATION} seconds
+📊 Results: ${SUCCESS_COUNT} succeeded, ${FAIL_COUNT} failed
+
+🔗 View: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          -d parse_mode="Markdown"
