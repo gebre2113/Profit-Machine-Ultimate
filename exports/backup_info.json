@@ -1,38 +1,9 @@
 {
-  "backup_info": {
-    "version": "2.0.0",
-    "last_backup": null,
-    "backup_schedule": "daily",
-    "retention_days": 30,
-    "storage_locations": [
-      "local",
-      "s3://profit-machine-backups",
-      "gcs://profit-machine-backups"
-    ],
-    "compression_enabled": true,
-    "encryption_enabled": true
-  },
-  "export_formats": {
-    "pdf": {
-      "enabled": true,
-      "template": "professional",
-      "watermark": true
-    },
-    "excel": {
-      "enabled": true,
-      "include_charts": true,
-      "auto_format": true
-    },
-    "json": {
-      "enabled": true,
-      "pretty_print": true,
-      "include_metadata": true
-    }
-  },
-  "notification_settings": {
-    "on_success": true,
-    "on_failure": true,
-    "channels": ["slack", "email", "telegram"],
-    "recipients": ["devops@company.com", "alerts@company.com"]
-  }
+  "backup_timestamp": "2026-01-23T11:02:13.341074",
+  "workflow": "daily",
+  "mode": "hybrid",
+  "run_id": "21283888264",
+  "run_number": "22",
+  "commit_hash": "63d339bf7bde17835a394dbd37f7e4998c0bb7b7",
+  "environment": "github-actions"
 }
