@@ -14,6 +14,17 @@ import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 from core.enhanced_unified_engine import EnhancedUnifiedEngine
+import os
+
+# ፋይሉ የሚቀመጥበትን መንገድ ማረጋገጥ
+directory = "exports"
+if not os.path.exists(directory):
+    os.makedirs(directory)
+
+# አሁን ፋይሉን መጻፍ ይቻላል
+file_path = os.path.join(directory, "backup_info.json")
+with open(file_path, 'w') as f:
+    f.write("{}") # ባዶ JSON ፋይል መፍጠር
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
