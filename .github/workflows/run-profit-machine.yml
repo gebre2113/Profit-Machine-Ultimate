@@ -33,43 +33,76 @@ env:
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-8core
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
-      - name: Create exports directory structure
+      - name: Setup exports directory structure
         run: |
+          echo "Setting up directory structure..."
+          
+          # Create necessary directories
           mkdir -p exports/daily exports/weekly exports/monthly exports/temp
           mkdir -p results logs cache
           
           # Create backup_info.json if it doesn't exist
           if [ ! -f exports/backup_info.json ]; then
-            echo '{
-              "backup_info": {
-                "version": "2.0.0",
-                "last_backup": null,
-                "backup_schedule": "daily",
-                "retention_days": 30,
-                "storage_locations": ["local"],
-                "compression_enabled": true,
-                "encryption_enabled": false
-              }
-            }' > exports/backup_info.json
+            echo 'Creating backup_info.json...'
+            cat > exports/backup_info.json << 'EOF'
+{
+  "backup_info": {
+    "version": "2.0.0",
+    "last_backup": null,
+    "backup_schedule": "daily",
+    "retention_days": 30,
+    "storage_locations": ["local"],
+    "compression_enabled": true,
+    "encryption_enabled": false
+  },
+  "export_formats": {
+    "pdf": {
+      "enabled": true,
+      "template": "professional",
+      "watermark": true
+    },
+    "excel": {
+      "enabled": true,
+      "include_charts": true,
+      "auto_format": true
+    },
+    "json": {
+      "enabled": true,
+      "pretty_print": true,
+      "include_metadata": true
+    }
+  },
+  "notification_settings": {
+    "on_success": true,
+    "on_failure": true,
+    "channels": ["slack", "email", "telegram"],
+    "recipients": ["devops@company.com", "alerts@company.com"]
+  }
+}
+EOF
           fi
           
-          # Verify structure
-          tree exports/
+          # Create .gitkeep files
+          touch exports/daily/.gitkeep exports/weekly/.gitkeep exports/monthly/.gitkeep exports/temp/.gitkeep
+          touch results/.gitkeep logs/.gitkeep cache/.gitkeep
+          
+          echo "Directory structure created:"
+          tree exports/ -I .gitkeep
 
   run-profit-machine:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-8core
     needs: setup
     timeout-minutes: 30
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -81,6 +114,7 @@ jobs:
           pip install --upgrade pip
           pip install aiohttp pandas numpy pydantic redis cachetools
           pip install boto3 google-cloud-storage cryptography
+          pip install plotly seaborn matplotlib
       
       - name: Run Profit Machine Engine
         env:
@@ -93,7 +127,11 @@ jobs:
           import os
           from datetime import datetime
           
-          # Mock results for testing
+          print('🚀 Starting Profit Machine Engine...')
+          print(f'Region: {os.getenv(\"REGION\")}')
+          print(f'Priority: {os.getenv(\"PRIORITY\")}')
+          
+          # Create sample results for testing
           results = {
             'status': 'success',
             'timestamp': datetime.now().isoformat(),
@@ -109,57 +147,96 @@ jobs:
                 'revenue_5yr': '50M',
                 'roi': '35%',
                 'break_even': '18 months'
-              }
+              },
+              'strategy_recommendations': [
+                'Focus on digital transformation',
+                'Expand to adjacent markets',
+                'Invest in R&D for AI capabilities'
+              ]
+            },
+            'metadata': {
+              'engine_version': '2.0.0',
+              'execution_time': '45.2s',
+              'sources_used': ['internal_database', 'market_data']
             }
           }
           
           # Save results
           timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-          filename = f'results/results_{timestamp}.json'
+          results_dir = 'results'
+          filename = f'{results_dir}/results_{timestamp}.json'
           
           with open(filename, 'w') as f:
             json.dump(results, f, indent=2)
           
-          print(f'Results saved to {filename}')
+          print(f'✅ Results saved to {filename}')
           
-          # Backup results
-          from utils.backup_manager import BackupManager
-          backup_mgr = BackupManager()
-          backup_path = backup_mgr.backup_results(results)
-          print(f'Backup created: {backup_path}')
-          "
-      
-      - name: Backup execution results
-        run: |
-          echo "Backing up execution results..."
+          # Create backup
+          print('📦 Creating backup...')
+          backup_dir = 'exports/daily'
+          backup_file = f'{backup_dir}/backup_{timestamp}.json'
           
-          # Create backup archive
-          timestamp=$(date +%Y%m%d_%H%M%S)
-          backup_file="exports/daily/backup_${timestamp}.tar.gz"
+          with open(backup_file, 'w') as f:
+            json.dump(results, f, indent=2)
           
-          tar -czf "${backup_file}" results/ logs/
-          
-          echo "Backup created: ${backup_file}"
-          ls -lh "${backup_file}"
+          print(f'✅ Backup created: {backup_file}')
           
           # Update backup info
-          python -c "
-          import json
-          from datetime import datetime
+          backup_info_path = 'exports/backup_info.json'
+          try:
+            with open(backup_info_path, 'r') as f:
+              backup_info = json.load(f)
+            
+            backup_info['backup_info']['last_backup'] = datetime.now().isoformat()
+            
+            with open(backup_info_path, 'w') as f:
+              json.dump(backup_info, f, indent=2)
+            
+            print('✅ Backup info updated')
+          except Exception as e:
+            print(f'⚠️ Could not update backup info: {e}')
           
-          with open('exports/backup_info.json', 'r') as f:
-            config = json.load(f)
-          
-          config['backup_info']['last_backup'] = datetime.now().isoformat()
-          
-          with open('exports/backup_info.json', 'w') as f:
-            json.dump(config, f, indent=2)
-          
-          print('Backup info updated')
+          print('🎉 Profit Machine Engine completed successfully!')
           "
       
+      - name: Generate report summary
+        run: |
+          echo "📊 Generating report summary..."
+          
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          summary_file="results/summary_${timestamp}.md"
+          
+          cat > "${summary_file}" << EOF
+          # Profit Machine Execution Summary
+          
+          **Execution Date:** $(date)
+          **Workflow ID:** ${{ github.run_id }}
+          **Region:** ${{ github.event.inputs.region || 'north_america' }}
+          **Priority:** ${{ github.event.inputs.priority || 'normal' }}
+          
+          ## Results Generated
+          - Market analysis report
+          - Financial projections
+          - Strategy recommendations
+          
+          ## Files Created
+          - results/results_${timestamp}.json
+          - exports/daily/backup_${timestamp}.json
+          - results/summary_${timestamp}.md
+          
+          ## Next Steps
+          1. Review generated reports
+          2. Distribute to stakeholders
+          3. Schedule follow-up analysis
+          
+          ## Status: ✅ COMPLETED
+          EOF
+          
+          echo "✅ Summary saved to ${summary_file}"
+          cat "${summary_file}"
+      
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: profit-machine-results
           path: |
@@ -167,6 +244,8 @@ jobs:
             exports/daily/
             logs/
           retention-days: 7
+          if-no-files-found: error
+          compression-level: 9
       
       - name: Upload to S3 (optional)
         if: env.AWS_ACCESS_KEY_ID != ''
@@ -176,10 +255,17 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
-          # Upload results to S3
+          echo "📤 Uploading to S3..."
+          
           timestamp=$(date +%Y/%m/%d)
-          aws s3 cp results/ s3://$S3_BUCKET/results/$timestamp/ --recursive
-          aws s3 cp exports/ s3://$S3_BUCKET/backups/$timestamp/ --recursive
+          
+          # Upload results
+          aws s3 cp results/ s3://$S3_BUCKET/results/$timestamp/ --recursive --quiet
+          
+          # Upload backups
+          aws s3 cp exports/ s3://$S3_BUCKET/backups/$timestamp/ --recursive --quiet
+          
+          echo "✅ Upload completed to s3://$S3_BUCKET"
 
   cleanup:
     runs-on: ubuntu-latest
@@ -189,10 +275,29 @@ jobs:
     steps:
       - name: Cleanup old files
         run: |
-          echo "Cleaning up old files..."
+          echo "🧹 Cleaning up old files..."
           
-          # Remove files older than 7 days
-          find results/ -name "*.json" -mtime +7 -delete
-          find logs/ -name "*.log" -mtime +7 -delete
+          # Remove results older than 3 days
+          find results/ -name "*.json" -mtime +3 -delete 2>/dev/null || true
           
-          echo "Cleanup completed"
+          # Remove summaries older than 7 days
+          find results/ -name "*.md" -mtime +7 -delete 2>/dev/null || true
+          
+          # Remove logs older than 7 days
+          find logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || true
+          
+          echo "✅ Cleanup completed"
+      
+      - name: Archive successful run
+        if: success()
+        run: |
+          echo "🎯 Workflow completed successfully!"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Workflow failed!"
+          echo "Please check the logs for errors."
+          exit 1
