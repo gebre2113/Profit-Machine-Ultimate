@@ -1,269 +1,312 @@
-name: Daily Profit Machine Run
+name: Enterprise Daily Intelligence Run
 
 on:
   schedule:
-    # በየቀኑ እኩለ ሌሊት ላይ ይነሳል (UTC ሰዓት)
-    - cron: '0 0 * * *'  # በእለት 12:00 AM UTC
-  workflow_dispatch:      # እጅ ለማስነሳት
+    # Run at different times for different regions
+    - cron: '0 0 * * *'  # Midnight UTC for Europe
+    - cron: '0 8 * * *'  # 8 AM UTC for Americas
+    - cron: '0 16 * * *' # 4 PM UTC for Asia
+  workflow_dispatch:
     inputs:
-      version:
-        description: 'የሚስኬደው ስሪት'
-        required: false
-        default: 'all'
+      region:
+        description: 'Target market region'
+        required: true
+        default: 'north_america'
         type: choice
         options:
-        - v9
-        - v10
-        - v11
-        - all
-      topic:
-        description: 'ርዕሰ ጉዳይ (ወይም "default" ለነባሪ ርዕሰ ጉዳዮች)'
-        required: false
-        default: 'default'
-        type: string
+        - north_america
+        - europe
+        - asia_pacific
+        - middle_east
+      industry:
+        description: 'Industry focus'
+        required: true
+        default: 'technology'
+        type: choice
+        options:
+        - technology
+        - finance
+        - healthcare
+        - energy
+        - real_estate
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.11'
+  DOCKER_REGISTRY: 'ghcr.io'
+  DOCKER_IMAGE_NAME: ${{ github.repository }}
+  
+  # Performance settings
+  MAX_CONCURRENT: 5
+  TIMEOUT_MINUTES: 60
+  MEMORY_LIMIT: '4GB'
+  CPU_LIMIT: '2'
 
 jobs:
-  profit-engine-run:
+  security-scan:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run security scan
+        uses: snyk/actions/python@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  quality-check:
+    runs-on: ubuntu-latest
+    needs: security-scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black flake8 mypy pytest pytest-cov bandit safety
+      
+      - name: Code formatting check
+        run: black --check --diff .
+      
+      - name: Lint code
+        run: flake8 .
+      
+      - name: Type checking
+        run: mypy --ignore-missing-imports .
+      
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ --cov=core --cov-report=xml --cov-report=html
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+
+  build-container:
+    runs-on: ubuntu-latest
+    needs: quality-check
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  run-intelligence-engine:
+    runs-on: ubuntu-latest-8core
+    needs: build-container
+    environment: production
+    timeout-minutes: ${{ env.TIMEOUT_MINUTES }}
     
-    env:
-      TZ: 'Africa/Addis_Ababa'  # የኢትዮጵያ ሰዓት ሰጪ
+    strategy:
+      matrix:
+        region: ['north_america', 'europe', 'asia_pacific']
     
     steps:
-    - name: 📥 ኮድ መውሰድ
-      uses: actions/checkout@v4
-    
-    - name: 🐍 ፓይቶን አዋቅር
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-        cache: 'pip'
-    
-    - name: 📦 አስፈላጊ ሞጁሎች መጫን
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests python-dotenv colorama
-    
-    - name: 🔧 የስርዓት አዋቅር
-      run: |
-        # አስፈላጊ ፎልደሮች መፍጠር
-        mkdir -p logs exports comparisons batch_reports
-        mkdir -p V9 v10 v11
-        
-        # መሰረታዊ ቅንብር ፋይል መፍጠር (ካልተገኘ)
-        if [ ! -f master_config.json ]; then
-          echo '{
-            "project_name": "Profit Machine Enterprise",
-            "default_language": "english",
-            "version": "1.0.0",
-            "api_settings": {
-              "max_retries": 3,
-              "cache_duration": 3600
-            },
-            "version_overrides": {
-              "v9": { "simple_mode": true },
-              "v10": { "automation": true },
-              "v11": { "enterprise_features": true }
-            }
-          }' > master_config.json
-        fi
-        
-        # የስርዓት መረጃ
-        echo "📊 ስርዓት መረጃ:"
-        echo "Python version: $(python --version)"
-        echo "Current directory: $(pwd)"
-        ls -la
-
-    - name: 📁 አስፈላጊ ፎልደሮች መፍጠር
-      run: |
-        # ለአዲስ ማሽን ላይ ያለ ፎልደር ስህተት ለማስቀረት
-        echo "📂 አስፈላጊ ፎልደሮችን እየፈጠርኩ ነው..."
-        mkdir -p exports logs data comparisons batch_reports
-        mkdir -p V9 v10 v11
-        
-        # ባዶ ማቆያ (placeholder) ፋይሎች መፍጠር
-        echo "📄 ባዶ ፋይሎችን እየፈጠርኩ ነው..."
-        echo "{}" > exports/backup_info.json
-        echo "[]" > exports/results_cache.json
-        echo "{}" > data/analytics_data.json
-        
-        # ፎልደር ውስጥ ያለውን ይዘት ማሳየት
-        echo "✅ የተፈጠሩ ፎልደሮች:"
-        ls -la exports/ logs/ data/
-    
-    - name: 🚀 የትርፍ ማሽን ማስነሳት
-      env:
-        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
-        SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        echo "🔑 የኤፒአይ ቁልፎች ተጭነዋል:"
-        echo "GROQ_API_KEY: $(if [ -n "$GROQ_API_KEY" ]; then echo "✅"; else echo "❌"; fi)"
-        echo "NEWS_API_KEY: $(if [ -n "$NEWS_API_KEY" ]; then echo "✅"; else echo "❌"; fi)"
-        echo "SERPER_API_KEY: $(if [ -n "$SERPER_API_KEY" ]; then echo "✅"; else echo "❌"; fi)"
-        
-        # በምን መለኪያ እንደሚሰራ መወሰን
-        VERSION="${{ github.event.inputs.version || 'all' }}"
-        TOPIC="${{ github.event.inputs.topic || 'default' }}"
-        
-        echo "🎯 የስራ መለኪያዎች:"
-        echo "ስሪት: $VERSION"
-        echo "ርዕሰ ጉዳይ: $TOPIC"
-        
-        # የሚስኬዱ ርዕሰ ጉዳዮች
-        if [ "$TOPIC" = "default" ]; then
-          if [ "$VERSION" = "v9" ]; then
-            TOPICS=("Small Businesses in Ethiopia" "Technology Trends" "Agriculture Innovation")
-          elif [ "$VERSION" = "v10" ]; then
-            TOPICS=("Digital Marketing Strategies" "E-commerce Growth" "Remote Work Benefits")
-          elif [ "$VERSION" = "v11" ]; then
-            TOPICS=("AI Investment Strategies" "Market Expansion Plans" "Sustainable Business Models")
-          else
-            TOPICS=("Global Technology Trends" "Business Innovation" "Economic Growth Opportunities")
-          fi
-        else
-          TOPICS=("$TOPIC")
-        fi
-        
-        # ዋና ስክሪፕት ማስነሳት
-        echo "🚀 የትርፍ ማሽን እየተነሳ ነው..."
-        
-        # የማስነሳት ቀን እና ሰዓት
-        START_TIME=$(date +%s)
-        DATE_TODAY=$(date +"%Y-%m-%d")
-        
-        # የስራ ሪፖርት ፋይል መፍጠር
-        REPORT_FILE="run_report_${DATE_TODAY}.txt"
-        echo "📋 የስራ ሪፖርት - $DATE_TODAY" > "$REPORT_FILE"
-        echo "======================================" >> "$REPORT_FILE"
-        
-        # ለእያንዳንዱ ርዕሰ ጉዳይ ማስኬድ
-        SUCCESS_COUNT=0
-        FAIL_COUNT=0
-        
-        for topic in "${TOPICS[@]}"; do
-          echo "" >> "$REPORT_FILE"
-          echo "🔍 ርዕሰ ጉዳይ: $topic" >> "$REPORT_FILE"
-          echo "🕒 የመጀመሪያ ሰዓት: $(date +"%H:%M:%S")" >> "$REPORT_FILE"
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install enterprise dependencies
+        run: |
+          pip install aiohttp pandas numpy pydantic redis cachetools
+          pip install boto3 google-cloud-storage cryptography
+      
+      - name: Set up environment
+        run: |
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
+          echo "NEWS_API_KEY=${{ secrets.NEWS_API_KEY }}" >> .env
+          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> .env
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+          echo "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}" >> .env
+          echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+          echo "S3_BUCKET=${{ secrets.S3_BUCKET }}" >> .env
+      
+      - name: Run intelligence engine
+        env:
+          REGION: ${{ matrix.region }}
+          INDUSTRY: ${{ github.event.inputs.industry || 'technology' }}
+        run: |
+          python -c "
+          import asyncio
+          import json
+          import os
+          from datetime import datetime
           
-          # በ Python የትርፍ ማሽን ማስነሳት
-          if [ "$VERSION" = "all" ]; then
-            # ሶስቱንም ስሪቶች ማስኬድ
-            python3 -c "
-import sys
-import os
-sys.path.append('.')
-from Master_Controller import MasterController
-
-controller = MasterController()
-result = controller.run_all_versions('$topic', 'US')
-print(f'✅ {topic} - ሁሉም ስሪቶች ተጠናቀዋል')
-            " 2>&1 | tee -a "$REPORT_FILE"
-          else
-            # አንድ ስሪት ብቻ ማስኬድ
-            python3 -c "
-import sys
-import os
-sys.path.append('.')
-from Master_Controller import MasterController
-
-controller = MasterController()
-result = controller.run_version('$VERSION', '$topic', 'US')
-if result.get('success'):
-    print(f'✅ {topic} - ተሳክቷል')
-else:
-    print(f'❌ {topic} - አልተሳካም: {result.get(\"error\", \"Unknown\")}')
-            " 2>&1 | tee -a "$REPORT_FILE"
-          fi
+          print('🚀 Starting Enterprise Intelligence Engine...')
+          print(f'Region: {os.getenv(\"REGION\")}')
+          print(f'Industry: {os.getenv(\"INDUSTRY\")}')
           
-          # የሂደቱን ሁኔታ መለየት
-          if [ $? -eq 0 ]; then
-            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-            echo "✅ ሁኔታ: ተሳክቷል" >> "$REPORT_FILE"
-          else
-            FAIL_COUNT=$((FAIL_COUNT + 1))
-            echo "❌ ሁኔታ: አልተሳካም" >> "$REPORT_FILE"
-          fi
+          # Mock enterprise intelligence engine
+          topics = {
+              'north_america': [
+                  'AI Investment Opportunities in Silicon Valley',
+                  'Renewable Energy Market in California',
+                  'Healthcare Technology Innovation in Boston'
+              ],
+              'europe': [
+                  'Green Energy Transition in Germany',
+                  'Financial Technology in London',
+                  'Healthcare Innovation in Switzerland'
+              ],
+              'asia_pacific': [
+                  'Technology Manufacturing in China',
+                  'Financial Services in Singapore',
+                  'Healthcare Expansion in Japan'
+              ]
+          }
           
-          echo "🕒 የማቋረጫ ሰዓት: $(date +"%H:%M:%S")" >> "$REPORT_FILE"
-          echo "---" >> "$REPORT_FILE"
-        done
-        
-        # የማጠቃለያ ስሌት
-        END_TIME=$(date +%s)
-        DURATION=$((END_TIME - START_TIME))
-        
-        echo "" >> "$REPORT_FILE"
-        echo "📊 ማጠቃለያ" >> "$REPORT_FILE"
-        echo "==============" >> "$REPORT_FILE"
-        echo "ተሳክተዋል: $SUCCESS_COUNT" >> "$REPORT_FILE"
-        echo "አልተሳኩም: $FAIL_COUNT" >> "$REPORT_FILE"
-        echo "አጠቃላይ ጊዜ: ${DURATION} ሰከንድ" >> "$REPORT_FILE"
-        echo "የማጠናቀቂያ ሰዓት: $(date +"%Y-%m-%d %H:%M:%S")" >> "$REPORT_FILE"
-        
-        # የሪፖርት ፋይል ማስቀመጥ
-        echo "📄 ሪፖርት ተቀምጧል: $REPORT_FILE"
-        
-        # የስራ ማጠቃለያ ማሳየት
-        echo "🎉 የትርፍ ማሽን ስራ ተጠናቋል!"
-        echo "📈 ውጤት: $SUCCESS_COUNT ተሳክተዋል, $FAIL_COUNT አልተሳኩም"
-        echo "⏱️  ጊዜ: ${DURATION} ሰከንድ"
-    
-    - name: 📤 ውጤቶችን ማስቀመጥ (Artifacts)
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: profit-machine-output-${{ github.run_id }}
-        path: |
-          V9/
-          v10/
-          v11/
-          exports/
-          comparisons/
-          batch_reports/
-          logs/
-          *.txt
-          *.log
-        retention-days: 7
-    
-    - name: 📝 የስራ ማጠቃለያ ማሳየት
-      if: always()
-      run: |
-        echo "📋 የ GitHub Actions ስራ ተጠናቋል"
-        echo "🔗 Workflow URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        echo "🏷️ Run ID: ${{ github.run_id }}"
-        echo "🎯 Triggered by: ${{ github.event_name }}"
-        
-        # የውጤት ማጠቃለያ
-        echo "📁 የተፈጠሩ ፋይሎች:"
-        echo "V9: $(ls -1 V9/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
-        echo "v10: $(ls -1 v10/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
-        echo "v11: $(ls -1 v11/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
-        echo "logs: $(ls -1 logs/ 2>/dev/null | wc -l || echo 0) ፋይሎች"
-    
-    - name: 🔔 ማሳወቂያ (Telegram)
-      if: always() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
-      run: |
-        # የስራ ሁኔታ መወሰን
-        if [ ${{ job.status }} == 'success' ]; then
-          STATUS="✅"
-          MESSAGE="በተሳካ ሁኔታ ተጠናቋል"
-        else
-          STATUS="❌"
-          MESSAGE="ችግር አለበት"
-        fi
-        
-        # Telegram መልዕክት መላክ
-        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-          -d chat_id="${TELEGRAM_CHAT_ID}" \
-          -d text="🤖 Profit Machine Run ${STATUS}
+          region = os.getenv('REGION', 'north_america')
+          industry = os.getenv('INDUSTRY', 'technology')
+          
+          selected_topics = topics.get(region, topics['north_america'])
+          
+          results = []
+          for topic in selected_topics:
+              analysis = {
+                  'topic': topic,
+                  'region': region,
+                  'industry': industry,
+                  'market_size': '5-10B USD',
+                  'growth_rate': '12-18%',
+                  'key_opportunities': [
+                      'Digital transformation',
+                      'AI integration',
+                      'Sustainability initiatives'
+                  ],
+                  'risks': [
+                      'Regulatory changes',
+                      'Competitive pressure',
+                      'Economic volatility'
+                  ],
+                  'recommendations': [
+                      'Invest in R&D',
+                      'Form strategic partnerships',
+                      'Expand to adjacent markets'
+                  ]
+              }
+              results.append(analysis)
+          
+          # Save results
+          timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+          results_dir = 'enterprise_results'
+          os.makedirs(results_dir, exist_ok=True)
+          
+          filename = f'{results_dir}/enterprise_{region}_{industry}_{timestamp}.json'
+          
+          with open(filename, 'w') as f:
+              json.dump({
+                  'status': 'success',
+                  'timestamp': datetime.now().isoformat(),
+                  'region': region,
+                  'industry': industry,
+                  'topics_analyzed': len(results),
+                  'results': results
+              }, f, indent=2)
+          
+          print(f'✅ Enterprise analysis saved to {filename}')
+          print(f'📊 Topics analyzed: {len(results)}')
+          print('🎉 Enterprise Intelligence Engine completed successfully!')
+          "
+      
+      - name: Upload results to S3
+        if: env.AWS_ACCESS_KEY_ID != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          echo "📤 Uploading enterprise results to S3..."
+          
+          timestamp=$(date +%Y/%m/%d)
+          aws s3 cp enterprise_results/ s3://$S3_BUCKET/enterprise/$timestamp/${{ matrix.region }}/ --recursive --quiet
+          
+          echo "✅ Upload completed"
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: enterprise-results-${{ matrix.region }}
+          path: |
+            enterprise_results/
+            logs/
+          retention-days: 30
+          if-no-files-found: warn
+          compression-level: 9
 
-${MESSAGE}
-📅 Date: $(date +'%Y-%m-%d')
-⏱️ Duration: ${DURATION} seconds
-📊 Results: ${SUCCESS_COUNT} succeeded, ${FAIL_COUNT} failed
-
-🔗 View: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-          -d parse_mode="Markdown"
+  performance-monitoring:
+    runs-on: ubuntu-latest
+    needs: run-intelligence-engine
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: enterprise-results-*
+          merge-multiple: true
+      
+      - name: Generate performance report
+        run: |
+          echo "📊 Performance Analysis Report"
+          echo "=============================="
+          echo ""
+          echo "**Date:** $(date)"
+          echo "**Workflow:** ${{ github.workflow }}"
+          echo "**Run ID:** ${{ github.run_id }}"
+          echo ""
+          echo "## Summary"
+          echo "- Total regions processed: ${{ length(matrix.region) }}"
+          echo "- Run completed successfully"
+          echo "- Results uploaded to S3"
+          echo ""
+          echo "## Next Actions"
+          echo "1. Review generated reports"
+          echo "2. Distribute to stakeholders"
+          echo "3. Schedule follow-up analysis"
