@@ -73,6 +73,23 @@ jobs:
         echo "Python version: $(python --version)"
         echo "Current directory: $(pwd)"
         ls -la
+
+    - name: 📁 አስፈላጊ ፎልደሮች መፍጠር
+      run: |
+        # ለአዲስ ማሽን ላይ ያለ ፎልደር ስህተት ለማስቀረት
+        echo "📂 አስፈላጊ ፎልደሮችን እየፈጠርኩ ነው..."
+        mkdir -p exports logs data comparisons batch_reports
+        mkdir -p V9 v10 v11
+        
+        # ባዶ ማቆያ (placeholder) ፋይሎች መፍጠር
+        echo "📄 ባዶ ፋይሎችን እየፈጠርኩ ነው..."
+        echo "{}" > exports/backup_info.json
+        echo "[]" > exports/results_cache.json
+        echo "{}" > data/analytics_data.json
+        
+        # ፎልደር ውስጥ ያለውን ይዘት ማሳየት
+        echo "✅ የተፈጠሩ ፎልደሮች:"
+        ls -la exports/ logs/ data/
     
     - name: 🚀 የትርፍ ማሽን ማስነሳት
       env:
