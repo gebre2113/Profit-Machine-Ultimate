@@ -1,0 +1,46 @@
+name: Setup Exports Directory
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'exports/**'
+      - '.github/workflows/**'
+
+jobs:
+  setup-exports:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Run setup script
+        run: python fix_workflow.py
+      
+      - name: Verify setup
+        run: |
+          echo "Checking exports directory structure..."
+          ls -la exports/
+          echo ""
+          echo "Checking backup_info.json..."
+          cat exports/backup_info.json | head -20
+      
+      - name: Commit changes if needed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add exports/
+            git commit -m "chore: setup exports directory structure"
+            git push
+          fi
