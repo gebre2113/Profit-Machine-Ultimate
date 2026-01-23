@@ -1,0 +1,18 @@
+{
+    "telegram": {
+        "enabled": true,
+        "bot_token": "7970725643:AAEvka4RWF1CCCw3yIanj-ELzlDDD3mKTXU",
+        "chat_id": "2079168961"
+    },
+    "wordpress": {
+        "enabled": true,
+        "url": "",
+        "username": "",
+        "app_password": "",
+        "auto_publish_to_wp": true
+    },
+    "enable_hybrid_mode": true,
+    "max_retries": 3,
+    "retry_delay": 5,
+    "auto_publish_to_wp": true
+}
