@@ -1,3 +1,5 @@
+# .github/workflows/profit-machine-ultimate.yml
+
 name: 🤖 Profit Machine Ultimate
 
 on:
@@ -14,30 +16,18 @@ on:
         default: 'hybrid'
         type: choice
         options:
-          - hybrid
-          - v10_only
-          - v11_only
+        - hybrid
+        - v10_only
+        - v11_only
       workflow:
         description: 'Workflow Type'
         required: true
         default: 'daily'
         type: choice
         options:
-          - daily
-          - enhancement
-          - maintenance
-      topics:
-        description: 'Topics (comma separated)'
-        required: false
-        default: 'AI in Business,Digital Marketing,Financial Technology'
-      countries:
-        description: 'Countries (comma separated)'
-        required: false
-        default: 'US,UK,DE'
-      niches:
-        description: 'Niches (comma separated)'
-        required: false
-        default: 'Technology,Business,Finance'
+        - daily
+        - enhancement
+        - maintenance
 
 # Prevent multiple simultaneous runs
 concurrency:
@@ -49,28 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     
     # Timeout after 30 minutes
-    timeout-minutes: 45
-    
-    env:
-      PYTHONUNBUFFERED: 1
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      WP_URL: ${{ secrets.WP_URL }}
-      WP_USERNAME: ${{ secrets.WP_USERNAME }}
-      WP_APPLICATION_PASSWORD: ${{ secrets.WP_APPLICATION_PASSWORD }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+    timeout-minutes: 30
     
     steps:
     - name: 📥 Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0  # Get all history for proper backups
     
     - name: 🐍 Setup Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -78,495 +56,170 @@ jobs:
     - name: 📦 Install dependencies
       run: |
         python -m pip install --upgrade pip
-        
-        # Create requirements.txt if not exists
-        if [ ! -f requirements.txt ]; then
-          echo "Creating requirements.txt..."
-          cat > requirements.txt << 'EOF'
-        aiohttp>=3.9.0
-        requests>=2.31.0
-        beautifulsoup4>=4.12.0
-        matplotlib>=3.7.0
-        openai>=1.12.0
-        pandas>=2.0.0
-        numpy>=1.24.0
-        cryptography>=41.0.0
-        EOF
-        fi
-        
         pip install -r requirements.txt
         
-        # Install optional packages
+        # Install optional packages if needed
         pip install tweepy facebook-sdk praw || echo "Optional social media packages not installed"
-        echo "✅ Dependencies installed"
     
     - name: 🏗️ Setup environment
       run: |
         # Create necessary directories
-        mkdir -p data exports logs backups reports utils
+        mkdir -p data exports logs backups
         
-        echo "📁 Directory structure created"
-        
-        # Create main controller if not exists
-        if [ ! -f main_controller.py ]; then
-          echo "⚠️ main_controller.py not found, creating basic version..."
-          cat > main_controller.py << 'EOF'
-        #!/usr/bin/env python3
-        """
-        🏆 Profit Machine Ultimate - Main Controller
-        """
-        
-        import os
-        import sys
-        import json
-        import argparse
-        from datetime import datetime
-        
-        def main():
-            parser = argparse.ArgumentParser(description='Profit Machine Ultimate')
-            parser.add_argument('--workflow', default='daily', help='Workflow type')
-            parser.add_argument('--mode', default='hybrid', help='Operation mode')
-            
-            args = parser.parse_args()
-            
-            print(f"🏆 Profit Machine Ultimate")
-            print(f"📊 Workflow: {args.workflow}")
-            print(f"🎯 Mode: {args.mode}")
-            
-            # Create sample output
-            import os
-            os.makedirs('exports', exist_ok=True)
-            
-            result = {
-                'timestamp': datetime.now().isoformat(),
-                'workflow': args.workflow,
-                'mode': args.mode,
-                'articles_generated': 2,
-                'status': 'success'
-            }
-            
-            with open('exports/result.json', 'w') as f:
-                json.dump(result, f, indent=2)
-            
-            print("✅ Execution completed")
-            return 0
-        
-        if __name__ == "__main__":
-            sys.exit(main())
-        EOF
-        fi
-        
-        # Create utils directory with telegram reporter
-        cat > utils/telegram_reporter.py << 'EOF'
-        import requests
-        import logging
-        
-        class EnhancedTelegramReporter:
-            def __init__(self, bot_token: str, chat_id: str):
-                self.bot_token = bot_token
-                self.chat_id = chat_id
-                self.base_url = f"https://api.telegram.org/bot{bot_token}"
-                self.logger = logging.getLogger('profit_machine.telegram')
-            
-            def send_message(self, text: str, parse_mode: str = "HTML") -> bool:
-                try:
-                    payload = {
-                        'chat_id': self.chat_id,
-                        'text': text,
-                        'parse_mode': parse_mode,
-                        'disable_web_page_preview': True
-                    }
-                    
-                    response = requests.post(
-                        f"{self.base_url}/sendMessage",
-                        json=payload,
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        return True
-                    else:
-                        print(f"Telegram error: {response.text}")
-                        return False
-                        
-                except Exception as e:
-                    print(f"Telegram exception: {e}")
-                    return False
-        
-        EOF
-        
-        # Create profit machine v11 if not exists
-        if [ ! -f profit_machine_v11.py ]; then
-          echo "Creating profit_machine_v11.py..."
-          cat > profit_machine_v11.py << 'EOF'
-        #!/usr/bin/env python3
-        """
-        🏆 Profit Machine v11.0
-        """
-        
-        import os
-        import sys
-        import json
-        import asyncio
-        import argparse
-        from datetime import datetime
-        
-        async def main():
-            parser = argparse.ArgumentParser(description='Profit Machine v11.0')
-            parser.add_argument('--topic', required=False, default='AI Technology', help='Article topic')
-            parser.add_argument('--country', default='US', help='Target country')
-            parser.add_argument('--niche', default='Technology', help='Business niche')
-            parser.add_argument('--batch', type=int, default=0, help='Batch size')
-            
-            args = parser.parse_args()
-            
-            print("🏆 Profit Machine v11.0")
-            print(f"Topic: {args.topic}")
-            print(f"Country: {args.country}")
-            print(f"Niche: {args.niche}")
-            
-            # Create exports directory
-            os.makedirs('exports', exist_ok=True)
-            
-            result = {
-                'topic': args.topic,
-                'country': args.country,
-                'niche': args.niche,
-                'generated_at': datetime.now().isoformat(),
-                'batch_size': args.batch,
-                'status': 'success'
-            }
-            
-            # Save result
-            filename = f"exports/v11_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(filename, 'w') as f:
-                json.dump(result, f, indent=2)
-            
-            print(f"✅ Result saved to {filename}")
-            
-            return result
-        
-        if __name__ == "__main__":
-            asyncio.run(main())
-        EOF
-        fi
-        
-        # Create config file from secrets
-        cat > config.json << 'EOF'
+        # Create config files from secrets
+        cat > master_config.json << 'EOF'
         {
+          "mode": "${{ github.event.inputs.mode || 'hybrid' }}",
+          "hybrid_strategy": "quality_first",
+          "v10_settings": {
+            "enabled": true,
+            "daily_limit": 2,
+            "target_word_count": 1800
+          },
+          "v11_settings": {
+            "enabled": true,
+            "daily_limit": 1,
+            "enable_adsense_protection": true,
+            "enable_social_posting": ${{ secrets.TWITTER_API_KEY != '' }}
+          },
           "telegram": {
             "enabled": ${{ secrets.TELEGRAM_BOT_TOKEN != '' }},
             "bot_token": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
             "chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}"
-          },
-          "wordpress": {
-            "enabled": ${{ secrets.WP_URL != '' && secrets.WP_USERNAME != '' && secrets.WP_APPLICATION_PASSWORD != '' }},
-            "url": "${{ secrets.WP_URL }}",
-            "username": "${{ secrets.WP_USERNAME }}",
-            "app_password": "${{ secrets.WP_APPLICATION_PASSWORD }}"
-          },
-          "mode": "${{ github.event.inputs.mode || 'hybrid' }}",
-          "workflow": "${{ github.event.inputs.workflow || 'daily' }}",
-          "enable_hybrid_mode": true,
-          "auto_publish_to_wp": true,
-          "daily_topic_count": 3,
-          "log_level": "INFO"
+          }
         }
         EOF
         
         echo "✅ Environment setup complete"
     
     - name: 🚀 Run Profit Machine
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        PYTHONUNBUFFERED: 1
       run: |
         echo "Starting Profit Machine Ultimate..."
         echo "Mode: ${{ github.event.inputs.mode || 'hybrid' }}"
         echo "Workflow: ${{ github.event.inputs.workflow || 'daily' }}"
         
-        # Set executable permissions
-        chmod +x main_controller.py
-        chmod +x profit_machine_v11.py
-        
-        # Check what files we have
-        echo "📁 Available files:"
-        ls -la *.py
-        
-        # Run based on mode
-        MODE="${{ github.event.inputs.mode || 'hybrid' }}"
-        
-        if [ "$MODE" = "v11_only" ] || [ "$MODE" = "hybrid" ]; then
-          echo "🔄 Running Profit Machine v11..."
-          
-          # Parse input topics
-          TOPICS="${{ github.event.inputs.topics || 'AI in Business,Digital Marketing,Financial Technology' }}"
-          COUNTRIES="${{ github.event.inputs.countries || 'US,UK,DE' }}"
-          NICHES="${{ github.event.inputs.niches || 'Technology,Business,Finance' }}"
-          
-          IFS=',' read -ra TOPIC_ARRAY <<< "$TOPICS"
-          IFS=',' read -ra COUNTRY_ARRAY <<< "$COUNTRIES"
-          IFS=',' read -ra NICHE_ARRAY <<< "$NICHES"
-          
-          # Generate articles
-          for i in "${!TOPIC_ARRAY[@]}"; do
-            TOPIC="${TOPIC_ARRAY[$i]}"
-            COUNTRY="${COUNTRY_ARRAY[$i % ${#COUNTRY_ARRAY[@]}]}"
-            NICHE="${NICHE_ARRAY[$i % ${#NICHE_ARRAY[@]}]}"
-            
-            echo "📝 Generating: $TOPIC in $COUNTRY ($NICHE)"
-            python profit_machine_v11.py \
-              --topic "$TOPIC" \
-              --country "$COUNTRY" \
-              --niche "$NICHE" \
-              --batch 0
-          done
-        fi
-        
-        # Always run main controller for orchestration
-        echo "🎛️ Running Main Controller..."
+        # Run the master controller
         python main_controller.py \
-          --workflow "${{ github.event.inputs.workflow || 'daily' }}" \
-          --mode "${{ github.event.inputs.mode || 'hybrid' }}"
+          --workflow ${{ github.event.inputs.workflow || 'daily' }} \
+          --mode ${{ github.event.inputs.mode || 'hybrid' }}
         
-        echo "✅ Execution completed"
+        # Capture exit code
+        EXIT_CODE=$?
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✅ Execution completed successfully"
+        else
+          echo "⚠️ Execution completed with exit code: $EXIT_CODE"
+        fi
     
     - name: 💾 Backup results
       if: always()
       run: |
         echo "Backing up execution results..."
         
-        # Create backup info
-        cat > exports/backup_info.json << 'EOF'
-        {
-          "backup_timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-          "workflow": "${{ github.event.inputs.workflow || 'daily' }}",
-          "mode": "${{ github.event.inputs.mode || 'hybrid' }}",
-          "run_id": "${{ github.run_id }}",
-          "run_number": "${{ github.run_number }}",
-          "commit_hash": "${{ github.sha }}",
-          "environment": "github-actions",
-          "trigger": "${{ github.event_name }}"
+        # Create timestamp
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        
+        # Export database to JSON
+        python3 -c "
+        import json
+        import os
+        from datetime import datetime
+        
+        backup_data = {
+            'backup_timestamp': datetime.now().isoformat(),
+            'workflow': '${{ github.event.inputs.workflow || 'daily' }}',
+            'mode': '${{ github.event.inputs.mode || 'hybrid' }}',
+            'run_id': '${{ github.run_id }}',
+            'run_number': '${{ github.run_number }}',
+            'commit_hash': '${{ github.sha }}',
+            'environment': 'github-actions'
         }
-        EOF
+        
+        # Save backup info
+        with open('exports/backup_info.json', 'w') as f:
+            json.dump(backup_data, f, indent=2)
+        
+        print('✅ Backup info saved')
+        "
         
         # Create summary file
-        cat > exports/execution_summary.md << 'EOF'
-        # 🤖 Profit Machine Execution Summary
-        
-        ## 📊 Execution Details
-        - **Run ID:** ${{ github.run_id }}
-        - **Run Number:** ${{ github.run_number }}
-        - **Date:** $(date)
-        - **Workflow:** ${{ github.event.inputs.workflow || 'daily' }}
-        - **Mode:** ${{ github.event.inputs.mode || 'hybrid' }}
-        - **Trigger:** ${{ github.event_name }}
-        
-        ## 📁 Generated Files
-        
-        EOF
-        
-        # List generated files
-        echo "### JSON Files" >> exports/execution_summary.md
-        find exports -name "*.json" -type f | while read file; do
-          echo "- $(basename "$file")" >> exports/execution_summary.md
-        done
-        
+        echo "# Execution Summary" > exports/execution_summary.md
+        echo "Run ID: ${{ github.run_id }}" >> exports/execution_summary.md
+        echo "Date: $(date)" >> exports/execution_summary.md
+        echo "Workflow: ${{ github.event.inputs.workflow || 'daily' }}" >> exports/execution_summary.md
+        echo "Mode: ${{ github.event.inputs.mode || 'hybrid' }}" >> exports/execution_summary.md
         echo "" >> exports/execution_summary.md
-        echo "### Other Files" >> exports/execution_summary.md
-        find exports -name "*.html" -o -name "*.md" -o -name "*.txt" | while read file; do
-          echo "- $(basename "$file")" >> exports/execution_summary.md
-        done
-        
-        echo "" >> exports/execution_summary.md
-        echo "---" >> exports/execution_summary.md
-        echo "*Generated automatically by Profit Machine Ultimate*" >> exports/execution_summary.md
-        
-        echo "✅ Backup completed"
+        echo "Files generated:" >> exports/execution_summary.md
+        find exports -type f -name "*.json" -o -name "*.html" -o -name "*.md" | head -10 >> exports/execution_summary.md
     
-    - name: 📤 Upload artifacts
+    - name: 📤 Push results to repository
+      if: always()
+      run: |
+        # Configure git
+        git config --global user.email "github-actions@users.noreply.github.com"
+        git config --global user.name "GitHub Actions"
+        
+        # Check for changes
+        if git status --porcelain | grep -q '^[ MADRC]'; then
+          echo "Changes detected, committing..."
+          
+          # Add export files
+          git add exports/
+          git add reports/
+          git add data/*.json
+          
+          # Create commit message
+          COMMIT_MSG="🤖 Profit Machine: $(date +'%Y-%m-%d %H:%M')
+          
+          • Automated execution completed
+          • Run ID: ${{ github.run_id }}
+          • Workflow: ${{ github.event.inputs.workflow || 'daily' }}
+          • Mode: ${{ github.event.inputs.mode || 'hybrid' }}
+          "
+          
+          git commit -m "$COMMIT_MSG"
+          git push
+          
+          echo "✅ Changes pushed to repository"
+        else
+          echo "No changes to commit"
+        fi
+    
+    - name: 📊 Upload artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: profit-machine-output-${{ github.run_number }}
         path: |
           exports/
-          logs/
           reports/
-        retention-days: 30
-        if-no-files-found: ignore
+          logs/
+        retention-days: 7
     
-    - name: 📧 Send Telegram notification
-      if: always() && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+    - name: 📧 Send notification
+      if: always()
       run: |
-        echo "Sending Telegram notification..."
-        
-        # Create notification message
-        MESSAGE="🏆 <b>Profit Machine Execution Complete</b>
-
-📅 $(date '+%Y-%m-%d %H:%M UTC')
-
-📊 <b>Details:</b>
-• Run ID: ${{ github.run_id }}
-• Workflow: ${{ github.event.inputs.workflow || 'daily' }}
-• Mode: ${{ github.event.inputs.mode || 'hybrid' }}
-• Trigger: ${{ github.event_name }}
-
-📁 <b>Status:</b> ${{ job.status }}
-
-🔗 <b>GitHub Run:</b>
-https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-#ProfitMachine #Automation"
-        
-        # Send via Python script
-        python3 -c "
-        import requests
-        import os
-        
-        bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        chat_id = os.getenv('TELEGRAM_CHAT_ID')
-        
-        if bot_token and chat_id:
-            url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-            payload = {
-                'chat_id': chat_id,
-                'text': '''$MESSAGE''',
-                'parse_mode': 'HTML',
-                'disable_web_page_preview': True
-            }
-            
-            try:
-                response = requests.post(url, json=payload, timeout=10)
-                if response.status_code == 200:
-                    print('✅ Telegram notification sent')
-                else:
-                    print(f'⚠️ Telegram error: {response.text}')
-            except Exception as e:
-                print(f'❌ Telegram exception: {e}')
-        else:
-            print('⚠️ Telegram credentials missing')
-        "
-    
-    - name: 🔄 Push results to repository
-      if: always() && github.ref == 'refs/heads/main'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        echo "Checking for changes to commit..."
-        
-        # Configure git
-        git config --global user.email "github-actions@users.noreply.github.com"
-        git config --global user.name "GitHub Actions"
-        
-        # Check if there are changes
-        if git diff --quiet exports/; then
-          echo "No changes in exports directory"
-        else
-          echo "Changes detected, committing..."
-          
-          # Add all export files
-          git add exports/
-          
-          # Create commit message
-          COMMIT_MSG="🤖 Profit Machine: $(date +'%Y-%m-%d %H:%M')
-
-• Automated execution completed
-• Run ID: ${{ github.run_id }}
-• Workflow: ${{ github.event.inputs.workflow || 'daily' }}
-• Mode: ${{ github.event.inputs.mode || 'hybrid' }}
-• Files generated in exports/"
-
-          git commit -m "$COMMIT_MSG"
-          
-          # Push changes
-          git push origin main
-          
-          echo "✅ Changes pushed to repository"
-        fi
+        # This would send a notification via Telegram
+        # For now, we log the intent
+        echo "📧 Notification would be sent if Telegram is configured"
+        echo "Configure Telegram in GitHub Secrets for live notifications"
 
   weekly-report:
+    needs: run-profit-machine
     runs-on: ubuntu-latest
-    needs: [run-profit-machine]
-    
-    # Run weekly on Sundays at 8AM UTC
-    if: github.event_name == 'schedule' && github.event.schedule == '0 8 * * 0'
+    if: github.event_name == 'schedule' && github.event.schedule == '0 8 * * 0'  # Sundays at 8AM
     
     steps:
-    - name: 📥 Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: profit-machine-output-*
-        path: artifacts/
-        merge-multiple: true
-    
     - name: 📊 Generate weekly report
       run: |
         echo "Generating weekly performance report..."
         
-        # Create weekly report directory
-        mkdir -p reports/weekly
-        
-        # Generate report
-        cat > reports/weekly/weekly_report_$(date +%Y%m%d).md << 'EOF'
-        # 📊 Profit Machine Weekly Report
-        
-        ## 📈 Performance Summary
-        **Week:** $(date --date='last sunday' +%Y-%m-%d) to $(date +%Y-%m-%d)
-        **Generated:** $(date)
-        
-        ## 🎯 Weekly Statistics
-        
-        ### Articles Generated
-        - **Total:** [Calculated from artifacts]
-        - **By Type:**
-          - V10 Articles: [Count]
-          - V11 Articles: [Count]
-          - Hybrid Articles: [Count]
-        
-        ### WordPress Publishing
-        - **Published:** [Count]
-        - **Success Rate:** [Percentage]
-        - **Average Time:** [Seconds]
-        
-        ### System Performance
-        - **Average Execution Time:** [Seconds]
-        - **Success Rate:** [Percentage]
-        - **Error Count:** [Count]
-        
-        ## 📈 Trends & Insights
-        
-        ### Top Performing Topics
-        1. [Topic 1] - [Performance metric]
-        2. [Topic 2] - [Performance metric]
-        3. [Topic 3] - [Performance metric]
-        
-        ### Most Active Countries
-        1. [Country 1] - [Article count]
-        2. [Country 2] - [Article count]
-        3. [Country 3] - [Article count]
-        
-        ## 🎯 Recommendations
-        
-        ### Opportunities
-        1. **Expand Topic Coverage:** Consider adding [suggested topic]
-        2. **Optimize Publishing Times:** Best performance observed at [time]
-        3. **Improve SEO Scores:** Average score is [score], target is [target]
-        
-        ### Technical Improvements
-        1. **API Optimization:** Reduce latency in [specific area]
-        2. **Error Handling:** Improve recovery for [common error]
-        3. **Monitoring:** Add tracking for [metric]
-        
-        ## 📁 Detailed Files
-        All weekly artifacts are available in the exports directory.
-        
-        ---
-        *Report generated automatically by Profit Machine Ultimate*
-        EOF
-        
-        echo "✅ Weekly report generated"
-    
-    - name: 📤 Upload weekly report
-      uses: actions/upload-artifact@v4
-      with:
-        name: weekly-report-$(date +%Y%m%d)
-        path: reports/weekly/
-        retention-days: 90
+        # This would generate a comprehensive weekly report
+        # For now, we create a placeholder
+        echo "# Weekly Performance Report" > weekly_report.md
+        echo "Date: $(date)" >> weekly_report.md
+        echo "Generated automatically by Profit Machine Ultimate" >> weekly_report.md
