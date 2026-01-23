@@ -265,17 +265,10 @@ class EnhancedMasterController:
             return {'success': False, 'error': 'Missing credentials'}
         
         # Ensure URL has correct format
-        if not wp_url.endswith('/wp-json/wp/v2/posts'):
-            if wp_url.endswith('/'):
-                wp_url = f"{wp_url}wp-json/wp/v2/posts"
-            else:
-                wp_url = f"{wp_url}/wp-json/wp/v2/posts"
+                # መጀመሪያ Content-ን አስተካክል (ከ f-string ውጭ)
+        formatted_content = content.replace('\n', '<br>').replace('# ', '<h2>').replace('## ', '<h3>')
         
-        # Prepare the article content
-        title = content_data.get('topic', 'Generated Article')
-        content = content_data.get('content', '')
-        
-        # Convert markdown to HTML if needed (simplified)
+        # አሁን HTML-ን በ f-string አዘጋጅ (ያለ backslash)
         html_content = f"""
         <div class="profit-machine-article">
             <h1>{title}</h1>
@@ -284,7 +277,7 @@ class EnhancedMasterController:
                 <p>Date: {datetime.now().strftime('%B %d, %Y')}</p>
             </div>
             <div class="article-content">
-                {content.replace('\\n', '<br>').replace('# ', '<h2>').replace('## ', '<h3>')}
+                {formatted_content}
             </div>
             <footer>
                 <p>Automatically generated content</p>
@@ -292,17 +285,17 @@ class EnhancedMasterController:
         </div>
         """
         
-        payload = {
+        payload = {{
             'title': title,
             'content': html_content,
-            'status': 'draft',  # Can change to 'publish' when ready
-            'categories': [1],  # Default category ID
-            'meta': {
+            'status': 'publish',  # በቀጥታ እንዲለጠፍ 'publish' አድርገነዋል
+            'categories': [1],
+            'meta': {{
                 'generated_by': 'Profit Machine v11.0',
-                'generated_at': datetime.now().isoformat(),
-                'article_id': content_data.get('id', 'unknown')
-            }
-        }
+                'generated_at': datetime.now().isoformat()
+            }}
+        }}
+
         
         try:
             self.loggers['wordpress'].info(f"📤 Publishing to WordPress: {title}")
